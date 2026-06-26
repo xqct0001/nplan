@@ -16,7 +16,7 @@ const KNOWN_DELIVERABLES = [
 ];
 
 export function compileTaskSpec(surfaceRequest, context = {}) {
-  const text = String(surfaceRequest || '').trim();
+  const text = stripPromptArtifacts(surfaceRequest);
   const deliverables = extractDeliverables(text);
   const blocking = [];
   const ambiguities = [];
@@ -67,9 +67,52 @@ export function compileTaskSpec(surfaceRequest, context = {}) {
     planning_readiness: { score, decision },
     provenance: {
       conversation_turns_used: text ? [text] : [],
-      files_used: [...(context.files || [])]
+      files_used: [...(context.files || [])],
+      model_used: false
     }
   };
+}
+
+export function composeTaskSpecFromModel(surfaceRequest, modelDraft, context = {}) {
+  const text = stripPromptArtifacts(surfaceRequest);
+  const local = compileTaskSpec(text, context);
+  const deliverables = normalizeDeliverables(modelDraft.deliverables);
+  const blocking = normalizeMissing(modelDraft.missing_information).blocking;
+  const successCriteria = arrayOfStrings(modelDraft.success_criteria);
+  const score = blocking.length ? 0.55 : 0.9;
+  return {
+    ...local,
+    inferred_goal: stringOr(modelDraft.inferred_goal, local.inferred_goal),
+    task_type: stringOr(modelDraft.task_type, local.task_type),
+    deliverables: deliverables.length ? deliverables : local.deliverables,
+    constraints: { ...local.constraints, ...(modelDraft.constraints || {}) },
+    missing_information: normalizeMissing(modelDraft.missing_information),
+    assumptions: arrayOfStrings(modelDraft.assumptions),
+    ambiguities: arrayOfStrings(modelDraft.ambiguities),
+    success_criteria: successCriteria.length
+      ? successCriteria
+      : deliverables.map((item) => `${item.name} is produced and validated`),
+    clarification: {
+      requires_clarification: Boolean(blocking.length),
+      questions: blocking.map((item) => `Please clarify: ${item}`),
+      reason: blocking.length ? 'blocking information is missing' : 'ready to plan'
+    },
+    planning_readiness: {
+      score,
+      decision: blocking.length ? 'clarify_then_plan' : 'ready'
+    },
+    provenance: {
+      conversation_turns_used: text ? [text] : [],
+      files_used: [...(context.files || [])],
+      model_used: true
+    }
+  };
+}
+
+export function stripPromptArtifacts(value) {
+  let text = String(value || '').trim();
+  while (text.startsWith('>')) text = text.slice(1).trim();
+  return text;
 }
 
 function classifyTaskType(text) {
@@ -135,4 +178,31 @@ function knownInputs(context) {
     ...(context.project_notes || []),
     ...(context.instruction_files || [])
   ];
+}
+
+function normalizeDeliverables(deliverables) {
+  return Array.isArray(deliverables)
+    ? deliverables
+        .filter((item) => item && item.name)
+        .map((item) => ({
+          name: String(item.name),
+          format: item.format || 'unknown',
+          required: item.required !== false
+        }))
+    : [];
+}
+
+function normalizeMissing(value) {
+  return {
+    blocking: arrayOfStrings(value?.blocking),
+    non_blocking: arrayOfStrings(value?.non_blocking)
+  };
+}
+
+function arrayOfStrings(value) {
+  return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+}
+
+function stringOr(value, fallback) {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }

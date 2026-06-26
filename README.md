@@ -35,8 +35,10 @@ src/
   validation.js     TaskSpec and TaskPlan validators
 test/
   core.test.js      Node built-in test suite
+  model-*.test.js   Model provider and semantic understanding tests
 docs/
   agent-module-spec.md
+  model-providers.md
 ```
 
 ## Requirements
@@ -92,6 +94,51 @@ with `!` is intentionally unsupported because this project is planning-only.
 Ready requests include `taskspec`, `planner_input`, `taskplan`,
 `taskspec_report`, and `taskplan_report`. Vague requests return clarification
 questions and do not produce a task plan.
+
+## Model Providers
+
+The understanding layer can use OpenAI-compatible model providers before
+falling back to local rules. This fixes the earlier narrow keyword parser
+problem for requests such as:
+
+```text
+帮我设计一个本地文件整理工具，可以扫描文件、分类、输出报告、md文件
+```
+
+Supported built-ins:
+
+- `openai`
+- `openrouter`
+- `ollama`
+- `lmstudio`
+
+Custom providers use the same config shape. See
+[docs/model-providers.md](docs/model-providers.md) and
+[config.example.toml](config.example.toml).
+
+Examples:
+
+```powershell
+# OpenAI
+$env:OPENAI_API_KEY = "<your-key>"
+node ./src/cli.js --model gpt-5.5 --provider openai -p "Design a file organizer"
+
+# OpenRouter
+$env:OPENROUTER_API_KEY = "<your-key>"
+node ./src/cli.js --model "anthropic/claude-sonnet-4" --provider openrouter -p "Design a file organizer"
+
+# Ollama
+node ./src/cli.js --model qwen2.5 --provider ollama -p "Design a file organizer"
+
+# Custom OpenAI-compatible endpoint
+node ./src/cli.js --model my-model --provider custom --base-url http://127.0.0.1:8000/v1 --wire-api chat_completions -p "Design a file organizer"
+```
+
+Codex-style config overrides are supported:
+
+```powershell
+node ./src/cli.js -c model=qwen-plus -c model_provider=dashscope --config-path .\config.example.toml -p "设计文件整理工具"
+```
 
 ## Library Usage
 
@@ -190,8 +237,10 @@ src/
   validation.js     TaskSpec / TaskPlan 校验器
 test/
   core.test.js      Node 内置测试
+  model-*.test.js   模型 Provider 与语义理解测试
 docs/
   agent-module-spec.md
+  model-providers.md
 ```
 
 ## 环境要求
@@ -247,6 +296,50 @@ Get-Content .\logs.txt | node ./src/cli.js -p "summarize planning signals"
 本项目只负责规划，不负责执行任务。如果请求足够明确，输出会包含 `taskspec`、
 `planner_input`、`taskplan`、`taskspec_report` 和 `taskplan_report`。如果请求太
 模糊，只返回澄清问题，不会生成任务计划。
+
+## 模型 Provider
+
+理解层现在可以先调用 OpenAI-compatible 模型 Provider，再回退到本地规则。这解决了
+早期关键词解析过窄的问题，例如：
+
+```text
+帮我设计一个本地文件整理工具，可以扫描文件、分类、输出报告、md文件
+```
+
+内置 Provider：
+
+- `openai`
+- `openrouter`
+- `ollama`
+- `lmstudio`
+
+自定义 Provider 使用同一套配置。查看
+[docs/model-providers.md](docs/model-providers.md) 和
+[config.example.toml](config.example.toml)。
+
+示例：
+
+```powershell
+# OpenAI
+$env:OPENAI_API_KEY = "<your-key>"
+node ./src/cli.js --model gpt-5.5 --provider openai -p "Design a file organizer"
+
+# OpenRouter
+$env:OPENROUTER_API_KEY = "<your-key>"
+node ./src/cli.js --model "anthropic/claude-sonnet-4" --provider openrouter -p "Design a file organizer"
+
+# Ollama
+node ./src/cli.js --model qwen2.5 --provider ollama -p "Design a file organizer"
+
+# 自定义 OpenAI-compatible endpoint
+node ./src/cli.js --model my-model --provider custom --base-url http://127.0.0.1:8000/v1 --wire-api chat_completions -p "Design a file organizer"
+```
+
+支持 Codex 风格配置覆盖：
+
+```powershell
+node ./src/cli.js -c model=qwen-plus -c model_provider=dashscope --config-path .\config.example.toml -p "设计文件整理工具"
+```
 
 ## 代码使用
 

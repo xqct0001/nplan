@@ -19,6 +19,10 @@ create a UI, or manage remote agents.
 - `src/schemas.js`: field lists, minimal JSON Schema artifacts, constructors.
 - `src/understanding.js`: deterministic `TaskSpec` compiler.
 - `src/validation.js`: `TaskSpec` and `TaskPlan` guardrails.
+- `src/model-config.js`: Codex-style provider config, built-ins, TOML parser,
+  and `-c key=value` overrides.
+- `src/model-client.js`: OpenAI-compatible `responses` and `chat_completions`
+  TaskSpec extraction client.
 - `src/planning.js`: planner input mapping and bounded DAG generation.
 - `src/agent.js`: `LocalPlanningAgent` facade.
 - `src/context.js`: read-only local instruction file discovery.
@@ -76,3 +80,30 @@ Unsupported on purpose:
 - remote agent management
 
 Those features conflict with this module's planning-only boundary.
+
+## Model Integration
+
+The local rule compiler is a fallback. The primary semantic understanding path
+can call a configured model provider:
+
+- `openai`: Responses API
+- `openrouter`: chat completions
+- `ollama`: chat completions
+- `lmstudio`: chat completions
+- custom OpenAI-compatible providers through `model_providers.<id>`
+
+Config shape follows Codex-style model provider configuration:
+
+```toml
+model = "qwen-plus"
+model_provider = "dashscope"
+
+[model_providers.dashscope]
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+env_key = "DASHSCOPE_API_KEY"
+wire_api = "chat_completions"
+```
+
+When the model succeeds, `TaskSpec.provenance.model_used` is `true`. If no model
+is configured or a model call fails, the agent falls back to local rules and
+records the failure in provenance when available.

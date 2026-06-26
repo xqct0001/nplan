@@ -1,0 +1,47 @@
+# local-task-agent-js model config
+#
+# This follows the same shape as Codex-style model provider config:
+# a default model, a selected provider, and provider-specific HTTP settings.
+
+model = "gpt-5.5"
+model_provider = "openai"
+model_temperature = 0.1
+model_max_output_tokens = 2000
+
+[model_providers.openai]
+name = "OpenAI"
+base_url = "https://api.openai.com/v1"
+env_key = "OPENAI_API_KEY"
+wire_api = "responses"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.openrouter]
+name = "OpenRouter"
+base_url = "https://openrouter.ai/api/v1"
+env_key = "OPENROUTER_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.ollama]
+name = "Ollama"
+base_url = "http://localhost:11434/v1"
+wire_api = "chat_completions"
+request_max_retries = 0
+timeout_ms = 120000
+
+[model_providers.lmstudio]
+name = "LM Studio"
+base_url = "http://localhost:1234/v1"
+wire_api = "chat_completions"
+request_max_retries = 0
+timeout_ms = 120000
+
+[model_providers.dashscope]
+name = "DashScope"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+env_key = "DASHSCOPE_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000

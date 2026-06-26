@@ -1,10 +1,31 @@
 import { buildPlannerInput, planFromTaskSpec } from './planning.js';
-import { compileTaskSpec } from './understanding.js';
+import { compileTaskSpec, composeTaskSpecFromModel, stripPromptArtifacts } from './understanding.js';
 import { validateTaskPlan, validateTaskSpec } from './validation.js';
 
 export class LocalPlanningAgent {
+  constructor({ modelClient = null } = {}) {
+    this.modelClient = modelClient;
+  }
+
   analyze(surfaceRequest, context = {}) {
-    const taskspec = compileTaskSpec(surfaceRequest, context);
+    return this.#planFromTaskSpec(compileTaskSpec(surfaceRequest, context));
+  }
+
+  async analyzeAsync(surfaceRequest, context = {}) {
+    const request = stripPromptArtifacts(surfaceRequest);
+    if (!this.modelClient) return this.analyze(request, context);
+    try {
+      const draft = await this.modelClient.understandTask({ request, context });
+      return this.#planFromTaskSpec(composeTaskSpecFromModel(request, draft, context));
+    } catch (error) {
+      const taskspec = compileTaskSpec(request, context);
+      taskspec.provenance.model_used = false;
+      taskspec.provenance.model_error = error.message;
+      return this.#planFromTaskSpec(taskspec);
+    }
+  }
+
+  #planFromTaskSpec(taskspec) {
     const taskspecReport = validateTaskSpec(taskspec);
     const result = {
       status: 'needs_clarification',
