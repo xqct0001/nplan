@@ -1,0 +1,21 @@
+{
+  "name": "local-task-agent-js",
+  "version": "0.1.0",
+  "description": "Local Task Understanding and Task Decomposition agent in JavaScript.",
+  "type": "module",
+  "bin": {
+    "local-task-agent": "./src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "smoke": "node ./src/cli.js \"implement TaskSpec schema, TaskSpec verifier, TaskPlan schema, and DAG verifier\""
+  },
+  "keywords": [
+    "agent",
+    "task-understanding",
+    "task-decomposition",
+    "planner",
+    "dag"
+  ],
+  "license": "MIT"
+}

@@ -1,0 +1,10 @@
+node_modules/
+coverage/
+.nyc_output/
+DOC/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
