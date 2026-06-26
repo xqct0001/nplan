@@ -22,7 +22,7 @@ create a UI, or manage remote agents.
 - `src/planning.js`: planner input mapping and bounded DAG generation.
 - `src/agent.js`: `LocalPlanningAgent` facade.
 - `src/context.js`: read-only local instruction file discovery.
-- `src/cli.js`: thin JSON command-line entry.
+- `src/cli.js`: Claude Code-like command-line interaction layer.
 - `src/index.js`: public exports.
 
 ## Required TaskSpec Checks
@@ -55,5 +55,24 @@ Use Node.js only:
 ```powershell
 node --test
 node --check src/cli.js
-node ./src/cli.js "implement TaskSpec schema, TaskSpec verifier, TaskPlan schema, and DAG verifier"
+node ./src/cli.js -p "implement TaskSpec schema, TaskSpec verifier, TaskPlan schema, and DAG verifier"
 ```
+
+## CLI Interaction
+
+The CLI mirrors the safe subset of Claude Code's interaction shape:
+
+- no arguments: start an interactive session
+- quoted prompt: start an interactive session with an initial prompt
+- `-p` / `--print`: print one JSON result and exit
+- piped stdin with print mode: include stdin as additional prompt context
+- slash commands: `/help`, `/status`, `/plan`, `/clear`, `/exit`, `/quit`
+
+Unsupported on purpose:
+
+- shell execution via `!`
+- file editing
+- command execution
+- remote agent management
+
+Those features conflict with this module's planning-only boundary.

@@ -26,7 +26,7 @@ external executor.
 ```text
 src/
   agent.js          LocalPlanningAgent facade
-  cli.js            JSON CLI
+  cli.js            Claude Code-like CLI
   context.js        Read-only local context discovery
   index.js          Public exports
   planning.js       Planner input and TaskPlan DAG generation
@@ -58,12 +58,40 @@ use `npm.cmd test` instead of `npm test`.
 ## CLI Usage
 
 ```powershell
-node ./src/cli.js "implement TaskSpec schema, TaskSpec verifier, TaskPlan schema, and DAG verifier"
+node ./src/cli.js
 ```
 
-The CLI prints JSON. Ready requests include `taskspec`, `planner_input`,
-`taskplan`, `taskspec_report`, and `taskplan_report`. Vague requests return
-clarification questions and do not produce a task plan.
+The CLI follows a small Claude Code-like interaction model:
+
+```powershell
+# Start an interactive session
+node ./src/cli.js
+
+# Start an interactive session with an initial prompt
+node ./src/cli.js "implement TaskSpec schema and DAG verifier"
+
+# Print one JSON result and exit
+node ./src/cli.js -p "implement TaskSpec schema and DAG verifier"
+
+# Process piped content in print mode
+Get-Content .\logs.txt | node ./src/cli.js -p "summarize planning signals"
+```
+
+Interactive commands:
+
+```text
+/help             Show commands
+/status           Show session status
+/plan <prompt>    Analyze a prompt and print the plan JSON
+/clear            Clear the last result
+/exit, /quit      Exit the session
+```
+
+Plain text in interactive mode behaves like `/plan <prompt>`. Shell execution
+with `!` is intentionally unsupported because this project is planning-only.
+Ready requests include `taskspec`, `planner_input`, `taskplan`,
+`taskspec_report`, and `taskplan_report`. Vague requests return clarification
+questions and do not produce a task plan.
 
 ## Library Usage
 
@@ -153,7 +181,7 @@ JavaScript 实现。
 ```text
 src/
   agent.js          LocalPlanningAgent 统一入口
-  cli.js            JSON 命令行入口
+  cli.js            Claude Code 风格命令行入口
   context.js        只读本地上下文发现
   index.js          对外导出
   planning.js       PlannerInput 与 TaskPlan DAG 生成
@@ -186,12 +214,39 @@ npm.cmd test
 ## 命令行使用
 
 ```powershell
-node ./src/cli.js "implement TaskSpec schema, TaskSpec verifier, TaskPlan schema, and DAG verifier"
+node ./src/cli.js
 ```
 
-如果请求足够明确，输出会包含 `taskspec`、`planner_input`、`taskplan`、
-`taskspec_report` 和 `taskplan_report`。如果请求太模糊，只返回澄清问题，
-不会生成任务计划。
+CLI 现在使用一个精简的 Claude Code 风格交互：
+
+```powershell
+# 进入交互式 session
+node ./src/cli.js
+
+# 带初始 prompt 进入交互式 session
+node ./src/cli.js "implement TaskSpec schema and DAG verifier"
+
+# 一次性输出 JSON 后退出
+node ./src/cli.js -p "implement TaskSpec schema and DAG verifier"
+
+# 在 print mode 中处理管道输入
+Get-Content .\logs.txt | node ./src/cli.js -p "summarize planning signals"
+```
+
+交互命令：
+
+```text
+/help             显示命令
+/status           显示 session 状态
+/plan <prompt>    分析 prompt 并输出 plan JSON
+/clear            清空上一次结果
+/exit, /quit      退出 session
+```
+
+交互模式里的普通文本等同于 `/plan <prompt>`。`!` shell 执行被刻意禁用，因为
+本项目只负责规划，不负责执行任务。如果请求足够明确，输出会包含 `taskspec`、
+`planner_input`、`taskplan`、`taskspec_report` 和 `taskplan_report`。如果请求太
+模糊，只返回澄清问题，不会生成任务计划。
 
 ## 代码使用
 

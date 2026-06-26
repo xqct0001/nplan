@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "node --test",
-    "smoke": "node ./src/cli.js \"implement TaskSpec schema, TaskSpec verifier, TaskPlan schema, and DAG verifier\""
+    "smoke": "node ./src/cli.js -p \"implement TaskSpec schema, TaskSpec verifier, TaskPlan schema, and DAG verifier\""
   },
   "keywords": [
     "agent",
