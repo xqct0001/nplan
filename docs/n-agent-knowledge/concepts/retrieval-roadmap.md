@@ -8,7 +8,7 @@ timestamp: 2026-07-05T00:00:00Z
 
 # Current State
 
-N-Agent scans configured local directories, builds source references, ranks
+N-Agent Planner scans configured local directories, builds source references, ranks
 sources with a lightweight score, and keeps only a bounded number of evidence
 items.
 
@@ -29,4 +29,4 @@ depend on a cloud catalog. Those actions stay outside the planning-only boundary
 # Citations
 
 [1] [Context curator](../../../src/context-curator.js)
-[2] [N-Agent module spec](../../agent-module-spec.md)
+[2] [N-Agent Planner module spec](../../agent-module-spec.md)

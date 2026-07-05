@@ -1,14 +1,14 @@
-# N-Agent
+# N-Agent Planner
 
 Language: English | [简体中文](README.zh-CN.md)
 
-N-Agent is a local task understanding and task decomposition module for
+N-Agent Planner is a local task understanding and task decomposition module for
 turning a natural-language request into structured planning artifacts.
 
-It is intentionally planning-only. N-Agent does not execute tasks, edit files,
-run shell commands, create user interfaces, or manage remote agents. Its job is
-to understand the request, ground that understanding in local context, and
-produce a bounded plan that another executor can review or run later.
+It is intentionally planning-only. N-Agent Planner does not execute tasks, edit
+files, run shell commands, create user interfaces, or manage remote agents. Its
+job is to understand the request, ground that understanding in local context,
+and produce a bounded plan that another executor can review or run later.
 
 ## Core Capabilities
 
@@ -27,16 +27,17 @@ produce a bounded plan that another executor can review or run later.
 
 ## Installation
 
-N-Agent has no npm runtime dependencies.
+N-Agent Planner has no npm runtime dependencies.
 
 ```powershell
 npm link
 ```
 
-After linking, use the command:
+After linking, use either command:
 
 ```powershell
 nagent
+n-agent-planner
 ```
 
 ## Quick Start
@@ -116,7 +117,7 @@ Supported provider families include:
   `minimax`, `baichuan`, `yi`, `stepfun`, `modelscope`
 
 Some domestic OpenAI-compatible APIs reject JSON-mode request parameters.
-N-Agent supports provider-level compatibility flags such as
+N-Agent Planner supports provider-level compatibility flags such as
 `response_format = "none"` for those providers.
 
 See [docs/model-providers.md](docs/model-providers.md) and
@@ -124,7 +125,7 @@ See [docs/model-providers.md](docs/model-providers.md) and
 
 ## Local Knowledge
 
-N-Agent adopts the local, vendor-neutral part of the Knowledge Catalog OKF
+N-Agent Planner adopts the local, vendor-neutral part of the Knowledge Catalog OKF
 pattern:
 
 - Markdown with YAML frontmatter

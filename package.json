@@ -1,11 +1,12 @@
 {
-  "name": "n-agent",
+  "name": "n-agent-planner",
   "version": "0.1.0",
-  "description": "N-Agent: local task understanding and task decomposition in JavaScript.",
+  "description": "N-Agent Planner: local task understanding and task decomposition in JavaScript.",
   "type": "module",
   "bin": {
     "nagent": "./src/cli.js",
-    "n-agent": "./src/cli.js"
+    "n-agent": "./src/cli.js",
+    "n-agent-planner": "./src/cli.js"
   },
   "scripts": {
     "test": "node --test",

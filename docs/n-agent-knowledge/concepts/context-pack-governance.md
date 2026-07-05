@@ -2,16 +2,16 @@
 type: Agent Context Concept
 title: Context Pack Governance
 description: A bounded local context pack should prefer project-specific knowledge over broad external reference material.
-tags: [context, governance, okf, n-agent]
+tags: [context, governance, okf, n-agent-planner]
 timestamp: 2026-07-05T00:00:00Z
 ---
 
 # Purpose
 
-N-Agent should treat context as a curated input, not as a raw dump of every
+N-Agent Planner should treat context as a curated input, not as a raw dump of every
 available file. The local context pack exists to ground task understanding while
-preserving the module boundary: N-Agent plans and validates, but does not execute
-tasks.
+preserving the module boundary: N-Agent Planner plans and validates, but does
+not execute tasks.
 
 # Adopted Pattern
 
@@ -36,4 +36,3 @@ specs that describe the current module.
 
 [1] [OKF specification](../../../DOC/knowledge-catalog/okf/SPEC.md)
 [2] [Context policy](../../../src/context-policy.js)
-

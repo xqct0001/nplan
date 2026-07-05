@@ -1,12 +1,12 @@
-# N-Agent 中文说明
+# N-Agent Planner 中文说明
 
 语言：[English](README.md) | 简体中文
 
-N-Agent 是一个本地任务理解与任务拆分模块，用于把自然语言请求转换成结构化规划产物。
+N-Agent Planner 是一个本地任务理解与任务拆分模块，用于把自然语言请求转换成结构化规划产物。
 
-它刻意保持“只规划、不执行”的边界。N-Agent 不执行任务、不编辑文件、不运行 shell
-命令、不创建 UI，也不管理远程 Agent。它负责理解请求、结合本地上下文生成可靠的任务
-规格，并输出一个可供后续执行器审阅或执行的有界计划。
+它刻意保持“只规划、不执行”的边界。N-Agent Planner 不执行任务、不编辑文件、不运行
+shell 命令、不创建 UI，也不管理远程 Agent。它负责理解请求、结合本地上下文生成可靠的
+任务规格，并输出一个可供后续执行器审阅或执行的有界计划。
 
 ## 核心能力
 
@@ -23,16 +23,17 @@ N-Agent 是一个本地任务理解与任务拆分模块，用于把自然语言
 
 ## 安装
 
-N-Agent 没有 npm 运行时依赖。
+N-Agent Planner 没有 npm 运行时依赖。
 
 ```powershell
 npm link
 ```
 
-链接后即可使用命令：
+链接后即可使用任一命令：
 
 ```powershell
 nagent
+n-agent-planner
 ```
 
 ## 快速开始
@@ -111,7 +112,7 @@ nagent providers
   `volcengine_ark`、`doubao`、`tencent_hunyuan`、`hunyuan`、`siliconflow`、
   `minimax`、`baichuan`、`yi`、`stepfun`、`modelscope`
 
-部分国产 OpenAI-compatible API 不接受 JSON mode 参数。N-Agent 支持在 Provider
+部分国产 OpenAI-compatible API 不接受 JSON mode 参数。N-Agent Planner 支持在 Provider
 配置中使用 `response_format = "none"` 这类兼容参数。
 
 详见 [docs/model-providers.md](docs/model-providers.md) 和
@@ -119,7 +120,7 @@ nagent providers
 
 ## 本地知识
 
-N-Agent 采用 Knowledge Catalog / OKF 中适合本地项目的部分：
+N-Agent Planner 采用 Knowledge Catalog / OKF 中适合本地项目的部分：
 
 - 带 YAML frontmatter 的 Markdown
 - 一个文件一个概念

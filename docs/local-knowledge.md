@@ -1,6 +1,6 @@
 # Local Knowledge and OKF
 
-N-Agent adopts the useful local pieces of Google Cloud Knowledge Catalog's OKF
+N-Agent Planner adopts the useful local pieces of Google Cloud Knowledge Catalog's OKF
 pattern without adopting the cloud catalog runtime. In this project, OKF means:
 Markdown files with YAML frontmatter, one concept per file, normal Markdown
 links between concepts, and citations for sourced claims.
@@ -10,7 +10,7 @@ links between concepts, and citations for sourced claims.
 The local knowledge layer gives the Context Curator better project-owned
 context before the model call.
 
-It helps N-Agent answer questions such as:
+It helps N-Agent Planner answer questions such as:
 
 - Which local rules should shape task understanding?
 - Which source files explain the planning-only boundary?
@@ -59,7 +59,7 @@ Explain the concept in normal Markdown.
 [1] [Context policy](../../src/context-policy.js)
 ```
 
-Required for N-Agent recognition:
+Required for N-Agent Planner recognition:
 
 - `type`: non-empty concept type
 
@@ -114,4 +114,3 @@ Not adopted:
 - remote catalog writes
 - vector search requirement
 - execution of user tasks
-

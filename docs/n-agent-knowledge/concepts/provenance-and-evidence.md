@@ -8,14 +8,14 @@ timestamp: 2026-07-05T00:00:00Z
 
 # Purpose
 
-N-Agent already separates sources from evidence:
+N-Agent Planner already separates sources from evidence:
 
 * `source_map` records stable file identity, path, hash, parser version, and line span.
 * `evidence_map` records compact excerpts that can be sent to the model.
 * `context_pack` carries the selected subset into task understanding.
 
 OKF improves this by giving Markdown files structured metadata. When a Markdown
-file has OKF-style frontmatter with a non-empty `type`, N-Agent can classify it
+file has OKF-style frontmatter with a non-empty `type`, N-Agent Planner can classify it
 as a reusable knowledge concept rather than generic documentation.
 
 # Local Contract
@@ -41,4 +41,3 @@ checks.
 
 [1] [Provenance implementation](../../../src/provenance.js)
 [2] [TaskSpec validation](../../../src/validation.js)
-

@@ -1,5 +1,5 @@
 ---
-title: N-Agent 进程与任务使用说明
+title: N-Agent Planner 进程与任务使用说明
 tags:
   - n-agent
   - process
@@ -7,10 +7,10 @@ tags:
   - obsidian
 ---
 
-# N-Agent 进程与任务使用说明
+# N-Agent Planner 进程与任务使用说明
 
 这份文档用于在 Obsidian 中阅读。Obsidian 可以直接渲染下面的 Mermaid 图，用来查看
-N-Agent 的启动进程、任务处理链路和主要模块关系。
+N-Agent Planner 的启动进程、任务处理链路和主要模块关系。
 
 ## 适用场景
 
@@ -160,7 +160,7 @@ stateDiagram-v2
 
 ## 边界
 
-N-Agent 只负责规划，不负责执行：
+N-Agent Planner 只负责规划，不负责执行：
 
 - 不执行 shell 命令。
 - 不修改用户文件。
@@ -180,4 +180,3 @@ N-Agent 只负责规划，不负责执行：
 | `src/planning.js` | TaskPlan DAG 生成 |
 | `src/validation.js` | TaskSpec / TaskPlan 校验 |
 | `.n-agent/config.toml` | 项目模型配置 |
-
