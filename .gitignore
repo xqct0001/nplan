@@ -1,5 +1,5 @@
 node_modules/
-.n-agent/
+.nplan/
 coverage/
 .nyc_output/
 DOC/

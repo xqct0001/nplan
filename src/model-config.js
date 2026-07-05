@@ -330,19 +330,19 @@ function readConfigFile(configPath, env) {
 }
 
 function defaultConfigPaths(env) {
-  const home = env.N_AGENT_HOME || env.USERPROFILE || env.HOME;
+  const home = env.NPLAN_HOME || env.USERPROFILE || env.HOME;
   return [
-    resolve('.n-agent/config.toml'),
-    home ? join(home, '.n-agent', 'config.toml') : null
+    resolve('.nplan/config.toml'),
+    home ? join(home, '.nplan', 'config.toml') : null
   ];
 }
 
 function configFromEnv(env) {
   const config = { env };
-  const envModel = env.N_AGENT_MODEL;
-  const envProvider = env.N_AGENT_MODEL_PROVIDER;
-  const envBaseUrl = env.N_AGENT_BASE_URL;
-  const envWireApi = env.N_AGENT_WIRE_API;
+  const envModel = env.NPLAN_MODEL;
+  const envProvider = env.NPLAN_MODEL_PROVIDER;
+  const envBaseUrl = env.NPLAN_BASE_URL;
+  const envWireApi = env.NPLAN_WIRE_API;
   if (envModel) config.model = envModel;
   if (envProvider) config.model_provider = envProvider;
   if (envBaseUrl) {

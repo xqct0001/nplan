@@ -1,4 +1,4 @@
-# local-task-agent-js model config
+# NPlan model config
 #
 # This follows the same shape as Codex-style model provider config:
 # a default model, a selected provider, and provider-specific HTTP settings.

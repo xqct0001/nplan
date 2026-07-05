@@ -1,8 +1,8 @@
-# N-Plan Module Spec
+# NPlan Module Spec
 
 ## Scope
 
-`N-Plan` implements the local Task Understanding and Task
+`NPlan` implements the local Task Understanding and Task
 Decomposition layer described by the source Word report.
 
 The module accepts a user request plus optional local context and returns:
@@ -80,7 +80,7 @@ node --test
 node --check src/cli.js
 node --check src/context-curator.js
 node --check src/provenance.js
-n-plan -p "implement TaskSpec schema, TaskSpec verifier, TaskPlan schema, and DAG verifier"
+nplan -p "implement TaskSpec schema, TaskSpec verifier, TaskPlan schema, and DAG verifier"
 ```
 
 ## CLI Interaction
@@ -166,11 +166,11 @@ and testable.
 
 ## OKF-Style Local Knowledge
 
-N-Plan adopts the useful local pieces of the Knowledge Catalog OKF pattern:
+NPlan adopts the useful local pieces of the Knowledge Catalog OKF pattern:
 Markdown files with YAML frontmatter, one concept per file, index files for
 navigation, Markdown links for relationships, and citations for sourced claims.
 
-The project-owned bundle lives in `docs/n-agent-knowledge/`. The human-facing
+The project-owned bundle lives in `docs/nplan_knowledge/`. The human-facing
 guide is `docs/local-knowledge.md`. Files with a frontmatter `type` field are
 classified as `knowledge` sources, and their title, description, tags, and body
 excerpt are included in evidence text. Large external reference repositories

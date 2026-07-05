@@ -1,13 +1,10 @@
 {
-  "name": "n-plan",
+  "name": "nplan",
   "version": "0.1.0",
-  "description": "N-Plan: local task understanding and task decomposition in JavaScript.",
+  "description": "NPlan: local task understanding and task decomposition in JavaScript.",
   "type": "module",
   "bin": {
-    "n-plan": "./src/cli.js",
-    "nplan": "./src/cli.js",
-    "nagent": "./src/cli.js",
-    "n-agent": "./src/cli.js"
+    "nplan": "./src/cli.js"
   },
   "scripts": {
     "test": "node --test",

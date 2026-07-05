@@ -1,16 +1,16 @@
 ---
-title: N-Plan 进程与任务使用说明
+title: NPlan 进程与任务使用说明
 tags:
-  - n-agent
+  - nplan
   - process
   - task
   - obsidian
 ---
 
-# N-Plan 进程与任务使用说明
+# NPlan 进程与任务使用说明
 
 这份文档用于在 Obsidian 中阅读。Obsidian 可以直接渲染下面的 Mermaid 图，用来查看
-N-Plan 的启动进程、任务处理链路和主要模块关系。
+NPlan 的启动进程、任务处理链路和主要模块关系。
 
 ## 适用场景
 
@@ -35,7 +35,7 @@ flowchart TD
   User["用户"]
   Shell["终端"]
   CLI["nplan CLI 进程<br/>src/cli.js"]
-  Config["模型配置<br/>.n-agent/config.toml"]
+  Config["模型配置<br/>.nplan/config.toml"]
   Agent["LocalPlanningAgent<br/>src/agent.js"]
   Context["Context Curator<br/>src/context-curator.js"]
   Model["OpenAI-compatible 模型<br/>src/model-client.js"]
@@ -67,7 +67,7 @@ flowchart TD
 sequenceDiagram
   participant U as 用户
   participant C as nplan CLI
-  participant F as .n-agent/config.toml
+  participant F as .nplan/config.toml
   participant A as LocalPlanningAgent
 
   U->>C: nplan
@@ -160,7 +160,7 @@ stateDiagram-v2
 
 ## 边界
 
-N-Plan 只负责规划，不负责执行：
+NPlan 只负责规划，不负责执行：
 
 - 不执行 shell 命令。
 - 不修改用户文件。
@@ -179,4 +179,4 @@ N-Plan 只负责规划，不负责执行：
 | `src/understanding.js` | TaskSpec 组合与规范化 |
 | `src/planning.js` | TaskPlan DAG 生成 |
 | `src/validation.js` | TaskSpec / TaskPlan 校验 |
-| `.n-agent/config.toml` | 项目模型配置 |
+| `.nplan/config.toml` | 项目模型配置 |

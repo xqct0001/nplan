@@ -1,14 +1,14 @@
 ---
 type: Agent Architecture Decision
 title: OKF Adoption
-description: N-Plan adopts the file-based OKF shape but not the Google Cloud catalog runtime.
+description: NPlan adopts the file-based OKF shape but not the Google Cloud catalog runtime.
 tags: [architecture, okf, metadata-as-code]
 timestamp: 2026-07-05T00:00:00Z
 ---
 
 # Decision
 
-N-Plan should adopt the local, vendor-neutral parts of OKF:
+NPlan should adopt the local, vendor-neutral parts of OKF:
 
 * Markdown files with YAML frontmatter.
 * One concept per file.
@@ -16,7 +16,7 @@ N-Plan should adopt the local, vendor-neutral parts of OKF:
 * Markdown links for relationships.
 * Citations for claims that come from other files or external sources.
 
-N-Plan should not directly adopt the Google Cloud-specific runtime unless the
+NPlan should not directly adopt the Google Cloud-specific runtime unless the
 project later adds an explicit data catalog integration:
 
 * no Dataplex dependency

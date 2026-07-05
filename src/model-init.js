@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 
 import { BUILTIN_MODEL_PROVIDERS } from './model-config.js';
 
-export const PROJECT_CONFIG_PATH = resolve('.n-agent/config.toml');
+export const PROJECT_CONFIG_PATH = resolve('.nplan/config.toml');
 
 export function listProviderChoices() {
   return Object.entries(BUILTIN_MODEL_PROVIDERS).map(([id, provider]) => ({

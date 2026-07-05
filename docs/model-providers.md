@@ -12,8 +12,8 @@ provider for local inference, or an authorized cloud provider when configured.
 Configuration is merged in this order:
 
 1. built-in providers
-2. `.n-agent/config.toml`
-3. `$N_AGENT_HOME/config.toml` or `~/.n-agent/config.toml`
+2. `.nplan/config.toml`
+3. `$NPLAN_HOME/config.toml` or `~/.nplan/config.toml`
 4. environment variables
 5. CLI `-c key=value` overrides
 
@@ -54,30 +54,30 @@ Any OpenAI-compatible provider can be added under
 List the built-ins:
 
 ```powershell
-n-plan providers
+nplan providers
 ```
 
 Initialize or switch this project:
 
 ```powershell
 # Local default, no API key stored
-n-plan init --provider ollama --model qwen2.5
+nplan init --provider ollama --model qwen2.5
 
 # Chinese cloud provider
-n-plan init --provider dashscope --model qwen-plus
+nplan init --provider dashscope --model qwen-plus
 $env:DASHSCOPE_API_KEY = "<your-key>"
 
 # Chinese provider aliases are accepted
-n-plan init --provider kimi --model moonshot-v1-8k
+nplan init --provider kimi --model moonshot-v1-8k
 $env:MOONSHOT_API_KEY = "<your-key>"
 
 # Some domestic OpenAI-compatible providers reject response_format;
 # built-in configs such as minimax/baichuan/yi/stepfun/modelscope omit it.
-n-plan init --provider minimax --model MiniMax-M1
+nplan init --provider minimax --model MiniMax-M1
 $env:MINIMAX_API_KEY = "<your-key>"
 
 # Custom OpenAI-compatible endpoint
-n-plan init --provider custom --model my-model --base-url http://127.0.0.1:8000/v1 --wire-api chat_completions
+nplan init --provider custom --model my-model --base-url http://127.0.0.1:8000/v1 --wire-api chat_completions
 ```
 
 ## Example
@@ -111,13 +111,13 @@ Run:
 
 ```powershell
 $env:DASHSCOPE_API_KEY = "<your-key>"
-n-plan --config-path .\config.example.toml -p "帮我设计一个本地文件整理工具，可以扫描文件、分类、输出报告、md文件"
+nplan --config-path .\config.example.toml -p "帮我设计一个本地文件整理工具，可以扫描文件、分类、输出报告、md文件"
 ```
 
 One-off override:
 
 ```powershell
-n-plan `
+nplan `
   --model "openai/gpt-4.1" `
   --provider openrouter `
   -p "Design a file organizer"
@@ -126,7 +126,7 @@ n-plan `
 Custom provider:
 
 ```powershell
-n-plan `
+nplan `
   --model "my-model" `
   --provider custom `
   --base-url "http://127.0.0.1:8000/v1" `
@@ -137,8 +137,8 @@ n-plan `
 ## Model Required Behavior
 
 If no model is configured, interactive mode still starts and guides the user to
-run `n-plan init` or `/init`. Print mode exits with a model-required error and
-tells the user to run `n-plan init` or pass `--model` / `--provider`.
+run `nplan init` or `/init`. Print mode exits with a model-required error and
+tells the user to run `nplan init` or pass `--model` / `--provider`.
 
 If a configured model fails or returns invalid JSON, the analysis fails. The
 agent does not fall back to local rules to create a plan.

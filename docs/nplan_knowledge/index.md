@@ -1,12 +1,12 @@
 ---
 okf_version: "0.1"
-title: N-Plan Knowledge Bundle
+title: NPlan Knowledge Bundle
 description: Project-specific context bundle for task understanding, evidence, and planning.
 ---
 
-# N-Plan Knowledge Bundle
+# NPlan Knowledge Bundle
 
-This bundle adapts the useful parts of Knowledge Catalog and OKF for N-Plan.
+This bundle adapts the useful parts of Knowledge Catalog and OKF for NPlan.
 It is intentionally small, local, and model-provider neutral.
 
 # Guide
@@ -15,7 +15,7 @@ It is intentionally small, local, and model-provider neutral.
 
 # Core Concepts
 
-* [Context Pack Governance](concepts/context-pack-governance.md) - How N-Plan selects local context and keeps it bounded.
+* [Context Pack Governance](concepts/context-pack-governance.md) - How NPlan selects local context and keeps it bounded.
 * [Provenance and Evidence](concepts/provenance-and-evidence.md) - How source references and evidence items ground model output.
 * [OKF Adoption](concepts/okf-adoption.md) - Which OKF conventions are adopted and which cloud-specific pieces are excluded.
 * [Retrieval Roadmap](concepts/retrieval-roadmap.md) - Practical next steps for stronger local knowledge retrieval.

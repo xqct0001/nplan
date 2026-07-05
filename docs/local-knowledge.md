@@ -1,6 +1,6 @@
 # Local Knowledge and OKF
 
-N-Plan adopts the useful local pieces of Google Cloud Knowledge Catalog's OKF
+NPlan adopts the useful local pieces of Google Cloud Knowledge Catalog's OKF
 pattern without adopting the cloud catalog runtime. In this project, OKF means:
 Markdown files with YAML frontmatter, one concept per file, normal Markdown
 links between concepts, and citations for sourced claims.
@@ -10,7 +10,7 @@ links between concepts, and citations for sourced claims.
 The local knowledge layer gives the Context Curator better project-owned
 context before the model call.
 
-It helps N-Plan answer questions such as:
+It helps NPlan answer questions such as:
 
 - Which local rules should shape task understanding?
 - Which source files explain the planning-only boundary?
@@ -23,7 +23,7 @@ It helps N-Plan answer questions such as:
 ```text
 docs/
   local-knowledge.md                 Human-facing guide
-  n-agent-knowledge/
+  nplan_knowledge/
     index.md                         Bundle index
     concepts/
       context-pack-governance.md
@@ -46,7 +46,7 @@ Each reusable knowledge concept is a Markdown file with YAML frontmatter:
 type: Agent Context Concept
 title: Context Pack Governance
 description: A bounded local context pack should prefer project-specific knowledge.
-tags: [context, governance, n-agent]
+tags: [context, governance, nplan]
 timestamp: 2026-07-05T00:00:00Z
 ---
 
@@ -59,7 +59,7 @@ Explain the concept in normal Markdown.
 [1] [Context policy](../../src/context-policy.js)
 ```
 
-Required for N-Plan recognition:
+Required for NPlan recognition:
 
 - `type`: non-empty concept type
 
@@ -86,9 +86,9 @@ tasks, write files, publish metadata, or call Knowledge Catalog.
 
 ## Adding A New Concept
 
-1. Add a Markdown file under `docs/n-agent-knowledge/concepts/`.
+1. Add a Markdown file under `docs/nplan_knowledge/concepts/`.
 2. Include at least `type`, `title`, `description`, and `tags` in frontmatter.
-3. Link it from `docs/n-agent-knowledge/index.md`.
+3. Link it from `docs/nplan_knowledge/index.md`.
 4. Add citations to local files or external references when the body makes a
    sourced claim.
 5. Run tests:

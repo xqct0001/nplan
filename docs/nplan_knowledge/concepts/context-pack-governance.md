@@ -2,15 +2,15 @@
 type: Agent Context Concept
 title: Context Pack Governance
 description: A bounded local context pack should prefer project-specific knowledge over broad external reference material.
-tags: [context, governance, okf, n-plan]
+tags: [context, governance, okf, nplan]
 timestamp: 2026-07-05T00:00:00Z
 ---
 
 # Purpose
 
-N-Plan should treat context as a curated input, not as a raw dump of every
+NPlan should treat context as a curated input, not as a raw dump of every
 available file. The local context pack exists to ground task understanding while
-preserving the module boundary: N-Plan plans and validates, but does not execute
+preserving the module boundary: NPlan plans and validates, but does not execute
 tasks.
 
 # Adopted Pattern
@@ -23,7 +23,7 @@ The useful OKF pattern is progressive disclosure:
    `tags`, and `resource`.
 4. Use normal Markdown links to express relationships between concepts.
 
-This project applies that pattern inside `docs/n-agent-knowledge/`.
+This project applies that pattern inside `docs/nplan_knowledge/`.
 
 # Selection Rules
 

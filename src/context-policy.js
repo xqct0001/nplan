@@ -12,7 +12,7 @@ export const DEFAULT_CONTEXT_POLICY = {
     'config.example.toml'
   ],
   scan_dirs: ['docs', 'DOC', 'src', 'test'],
-  ignore_dirs: ['.git', 'node_modules', '.n-agent', '.codegraph', 'knowledge-catalog'],
+  ignore_dirs: ['.git', 'node_modules', '.nplan', '.codegraph', 'knowledge-catalog'],
   parser_version: 'local-text-v1',
   source_priority: {
     instruction: 100,
