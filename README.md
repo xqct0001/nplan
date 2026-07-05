@@ -1,14 +1,14 @@
-# N-Agent Planner
+# N-Plan
 
 Language: English | [简体中文](README.zh-CN.md)
 
-N-Agent Planner is a local task understanding and task decomposition module for
+N-Plan is a local task understanding and task decomposition module for
 turning a natural-language request into structured planning artifacts.
 
-It is intentionally planning-only. N-Agent Planner does not execute tasks, edit
-files, run shell commands, create user interfaces, or manage remote agents. Its
-job is to understand the request, ground that understanding in local context,
-and produce a bounded plan that another executor can review or run later.
+It is intentionally planning-only. N-Plan does not execute tasks, edit files,
+run shell commands, create user interfaces, or manage remote agents. Its job is
+to understand the request, ground that understanding in local context, and
+produce a bounded plan that another executor can review or run later.
 
 ## Core Capabilities
 
@@ -27,7 +27,7 @@ and produce a bounded plan that another executor can review or run later.
 
 ## Installation
 
-N-Agent Planner has no npm runtime dependencies.
+N-Plan has no npm runtime dependencies.
 
 ```powershell
 npm link
@@ -36,8 +36,9 @@ npm link
 After linking, use either command:
 
 ```powershell
+n-plan
+nplan
 nagent
-n-agent-planner
 ```
 
 ## Quick Start
@@ -45,32 +46,32 @@ n-agent-planner
 Configure a model provider:
 
 ```powershell
-nagent init --provider ollama --model qwen2.5
+n-plan init --provider ollama --model qwen2.5
 ```
 
 Or use a cloud provider:
 
 ```powershell
 $env:DASHSCOPE_API_KEY = "<your-key>"
-nagent init --provider qwen --model qwen-plus
+n-plan init --provider qwen --model qwen-plus
 ```
 
 Run one planning request and print JSON:
 
 ```powershell
-nagent -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
+n-plan -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
 ```
 
 Start an interactive session:
 
 ```powershell
-nagent
+n-plan
 ```
 
 ## CLI
 
 ```text
-nagent [options] [prompt]
+n-plan [options] [prompt]
 
 Commands:
   init              Configure this project for a model provider
@@ -104,7 +105,7 @@ Shell execution through `!` is intentionally unsupported.
 List built-ins:
 
 ```powershell
-nagent providers
+n-plan providers
 ```
 
 Supported provider families include:
@@ -117,7 +118,7 @@ Supported provider families include:
   `minimax`, `baichuan`, `yi`, `stepfun`, `modelscope`
 
 Some domestic OpenAI-compatible APIs reject JSON-mode request parameters.
-N-Agent Planner supports provider-level compatibility flags such as
+N-Plan supports provider-level compatibility flags such as
 `response_format = "none"` for those providers.
 
 See [docs/model-providers.md](docs/model-providers.md) and
@@ -125,7 +126,7 @@ See [docs/model-providers.md](docs/model-providers.md) and
 
 ## Local Knowledge
 
-N-Agent Planner adopts the local, vendor-neutral part of the Knowledge Catalog OKF
+N-Plan adopts the local, vendor-neutral part of the Knowledge Catalog OKF
 pattern:
 
 - Markdown with YAML frontmatter

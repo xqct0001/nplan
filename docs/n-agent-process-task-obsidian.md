@@ -1,5 +1,5 @@
 ---
-title: N-Agent Planner 进程与任务使用说明
+title: N-Plan 进程与任务使用说明
 tags:
   - n-agent
   - process
@@ -7,14 +7,14 @@ tags:
   - obsidian
 ---
 
-# N-Agent Planner 进程与任务使用说明
+# N-Plan 进程与任务使用说明
 
 这份文档用于在 Obsidian 中阅读。Obsidian 可以直接渲染下面的 Mermaid 图，用来查看
-N-Agent Planner 的启动进程、任务处理链路和主要模块关系。
+N-Plan 的启动进程、任务处理链路和主要模块关系。
 
 ## 适用场景
 
-- 想知道 `nagent` 启动后内部发生了什么。
+- 想知道 `nplan` 启动后内部发生了什么。
 - 想区分“进程”和“任务”在本项目里的含义。
 - 想用 Obsidian 图形化查看 CLI、模型、上下文、TaskSpec、TaskPlan 的关系。
 
@@ -22,7 +22,7 @@ N-Agent Planner 的启动进程、任务处理链路和主要模块关系。
 
 | 名称 | 含义 |
 | --- | --- |
-| 进程 | 用户执行 `nagent` 后启动的 Node.js CLI 进程。它负责读取输入、加载配置、维持交互会话。 |
+| 进程 | 用户执行 `nplan` 后启动的 Node.js CLI 进程。它负责读取输入、加载配置、维持交互会话。 |
 | 任务 | 用户输入的一段自然语言请求，例如“帮我设计文件整理工具”。任务不会被执行，只会被理解和拆分。 |
 | TaskSpec | 对用户请求的结构化理解，包含目标、交付物、约束、缺失信息、风险和成功标准。 |
 | TaskPlan | 从 TaskSpec 生成的有向无环任务图，包含任务输入、输出、依赖和验收标准。 |
@@ -34,7 +34,7 @@ N-Agent Planner 的启动进程、任务处理链路和主要模块关系。
 flowchart TD
   User["用户"]
   Shell["终端"]
-  CLI["nagent CLI 进程<br/>src/cli.js"]
+  CLI["nplan CLI 进程<br/>src/cli.js"]
   Config["模型配置<br/>.n-agent/config.toml"]
   Agent["LocalPlanningAgent<br/>src/agent.js"]
   Context["Context Curator<br/>src/context-curator.js"]
@@ -66,17 +66,17 @@ flowchart TD
 ```mermaid
 sequenceDiagram
   participant U as 用户
-  participant C as nagent CLI
+  participant C as nplan CLI
   participant F as .n-agent/config.toml
   participant A as LocalPlanningAgent
 
-  U->>C: nagent
+  U->>C: nplan
   C->>F: 读取模型配置
   alt 已配置模型
     C->>A: 创建 Agent runtime
     C-->>U: 进入交互模式
   else 未配置模型
-    C-->>U: 提示执行 /init 或 nagent init
+    C-->>U: 提示执行 /init 或 nplan init
   end
 ```
 
@@ -115,13 +115,13 @@ flowchart LR
 启动：
 
 ```powershell
-nagent
+nplan
 ```
 
 进入后可以直接输入任务：
 
 ```text
-nagent> 帮我设计一个本地文件整理工具，可以扫描文件、分类、输出报告
+nplan> 帮我设计一个本地文件整理工具，可以扫描文件、分类、输出报告
 ```
 
 常用命令：
@@ -160,7 +160,7 @@ stateDiagram-v2
 
 ## 边界
 
-N-Agent Planner 只负责规划，不负责执行：
+N-Plan 只负责规划，不负责执行：
 
 - 不执行 shell 命令。
 - 不修改用户文件。

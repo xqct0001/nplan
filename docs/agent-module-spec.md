@@ -1,8 +1,8 @@
-# N-Agent Planner Module Spec
+# N-Plan Module Spec
 
 ## Scope
 
-`N-Agent Planner` implements the local Task Understanding and Task
+`N-Plan` implements the local Task Understanding and Task
 Decomposition layer described by the source Word report.
 
 The module accepts a user request plus optional local context and returns:
@@ -80,7 +80,7 @@ node --test
 node --check src/cli.js
 node --check src/context-curator.js
 node --check src/provenance.js
-nagent -p "implement TaskSpec schema, TaskSpec verifier, TaskPlan schema, and DAG verifier"
+n-plan -p "implement TaskSpec schema, TaskSpec verifier, TaskPlan schema, and DAG verifier"
 ```
 
 ## CLI Interaction
@@ -166,7 +166,7 @@ and testable.
 
 ## OKF-Style Local Knowledge
 
-N-Agent Planner adopts the useful local pieces of the Knowledge Catalog OKF pattern:
+N-Plan adopts the useful local pieces of the Knowledge Catalog OKF pattern:
 Markdown files with YAML frontmatter, one concept per file, index files for
 navigation, Markdown links for relationships, and citations for sourced claims.
 

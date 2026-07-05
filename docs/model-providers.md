@@ -54,30 +54,30 @@ Any OpenAI-compatible provider can be added under
 List the built-ins:
 
 ```powershell
-nagent providers
+n-plan providers
 ```
 
 Initialize or switch this project:
 
 ```powershell
 # Local default, no API key stored
-nagent init --provider ollama --model qwen2.5
+n-plan init --provider ollama --model qwen2.5
 
 # Chinese cloud provider
-nagent init --provider dashscope --model qwen-plus
+n-plan init --provider dashscope --model qwen-plus
 $env:DASHSCOPE_API_KEY = "<your-key>"
 
 # Chinese provider aliases are accepted
-nagent init --provider kimi --model moonshot-v1-8k
+n-plan init --provider kimi --model moonshot-v1-8k
 $env:MOONSHOT_API_KEY = "<your-key>"
 
 # Some domestic OpenAI-compatible providers reject response_format;
 # built-in configs such as minimax/baichuan/yi/stepfun/modelscope omit it.
-nagent init --provider minimax --model MiniMax-M1
+n-plan init --provider minimax --model MiniMax-M1
 $env:MINIMAX_API_KEY = "<your-key>"
 
 # Custom OpenAI-compatible endpoint
-nagent init --provider custom --model my-model --base-url http://127.0.0.1:8000/v1 --wire-api chat_completions
+n-plan init --provider custom --model my-model --base-url http://127.0.0.1:8000/v1 --wire-api chat_completions
 ```
 
 ## Example
@@ -111,13 +111,13 @@ Run:
 
 ```powershell
 $env:DASHSCOPE_API_KEY = "<your-key>"
-nagent --config-path .\config.example.toml -p "帮我设计一个本地文件整理工具，可以扫描文件、分类、输出报告、md文件"
+n-plan --config-path .\config.example.toml -p "帮我设计一个本地文件整理工具，可以扫描文件、分类、输出报告、md文件"
 ```
 
 One-off override:
 
 ```powershell
-nagent `
+n-plan `
   --model "openai/gpt-4.1" `
   --provider openrouter `
   -p "Design a file organizer"
@@ -126,7 +126,7 @@ nagent `
 Custom provider:
 
 ```powershell
-nagent `
+n-plan `
   --model "my-model" `
   --provider custom `
   --base-url "http://127.0.0.1:8000/v1" `
@@ -137,8 +137,8 @@ nagent `
 ## Model Required Behavior
 
 If no model is configured, interactive mode still starts and guides the user to
-run `nagent init` or `/init`. Print mode exits with a model-required error and
-tells the user to run `nagent init` or pass `--model` / `--provider`.
+run `n-plan init` or `/init`. Print mode exits with a model-required error and
+tells the user to run `n-plan init` or pass `--model` / `--provider`.
 
 If a configured model fails or returns invalid JSON, the analysis fails. The
 agent does not fall back to local rules to create a plan.

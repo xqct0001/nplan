@@ -367,7 +367,7 @@ state
 我正在整理本项目的 Agent 设计文档。
 
 # Context
-项目是 N-Agent Planner，核心能力是把用户自然语言请求转换成 TaskSpec，再拆成可验证的 TaskPlan。
+项目是 N-Plan，核心能力是把用户自然语言请求转换成 TaskSpec，再拆成可验证的 TaskPlan。
 现有项目中已经有 README、agent-module-spec，以及本地 Word 报告中的任务理解与任务拆解设计思考。
 
 # Request

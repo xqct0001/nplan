@@ -9,8 +9,8 @@ import { OpenAICompatibleTaskModel } from './model-client.js';
 import { loadModelConfig, parseConfigOverrides } from './model-config.js';
 import { initHint, renderProviderList, writeProjectModelConfig } from './model-init.js';
 
-const APP_NAME = 'N-Agent Planner';
-const BIN_NAME = 'nagent';
+const APP_NAME = 'N-Plan';
+const BIN_NAME = 'nplan';
 
 const HELP = `Usage: ${BIN_NAME} [options] [prompt]
 
@@ -230,7 +230,7 @@ async function handleInteractiveLine(line, { state, streams }) {
     return false;
   }
   if (line.startsWith('!')) {
-    streams.output.write('Shell execution is not available in N-Agent Planner; describe the task instead.\n');
+    streams.output.write('Shell execution is not available in N-Plan; describe the task instead.\n');
     return false;
   }
 
