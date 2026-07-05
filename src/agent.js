@@ -1,28 +1,26 @@
 import { buildPlannerInput, planFromTaskSpec } from './planning.js';
-import { compileTaskSpec, composeTaskSpecFromModel, stripPromptArtifacts } from './understanding.js';
+import { curateContext } from './context-curator.js';
+import { composeTaskSpecFromModel, stripPromptArtifacts } from './understanding.js';
 import { validateTaskPlan, validateTaskSpec } from './validation.js';
+
+const MODEL_REQUIRED_MESSAGE =
+  'model configuration is required; configure a model before analyzing tasks';
 
 export class LocalPlanningAgent {
   constructor({ modelClient = null } = {}) {
     this.modelClient = modelClient;
   }
 
-  analyze(surfaceRequest, context = {}) {
-    return this.#planFromTaskSpec(compileTaskSpec(surfaceRequest, context));
+  analyze() {
+    throw new Error(MODEL_REQUIRED_MESSAGE);
   }
 
   async analyzeAsync(surfaceRequest, context = {}) {
     const request = stripPromptArtifacts(surfaceRequest);
-    if (!this.modelClient) return this.analyze(request, context);
-    try {
-      const draft = await this.modelClient.understandTask({ request, context });
-      return this.#planFromTaskSpec(composeTaskSpecFromModel(request, draft, context));
-    } catch (error) {
-      const taskspec = compileTaskSpec(request, context);
-      taskspec.provenance.model_used = false;
-      taskspec.provenance.model_error = error.message;
-      return this.#planFromTaskSpec(taskspec);
-    }
+    if (!this.modelClient) throw new Error(MODEL_REQUIRED_MESSAGE);
+    const curatedContext = curateContext(request, context);
+    const draft = await this.modelClient.understandTask({ request, context: curatedContext });
+    return this.#planFromTaskSpec(composeTaskSpecFromModel(request, draft, curatedContext));
   }
 
   #planFromTaskSpec(taskspec) {

@@ -8,7 +8,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     env_key: 'OPENAI_API_KEY',
     wire_api: 'responses',
     request_max_retries: 2,
-    timeout_ms: 60000
+    timeout_ms: 60000,
+    default_model: 'gpt-5.5'
   },
   openrouter: {
     name: 'OpenRouter',
@@ -16,21 +17,242 @@ export const BUILTIN_MODEL_PROVIDERS = {
     env_key: 'OPENROUTER_API_KEY',
     wire_api: 'chat_completions',
     request_max_retries: 2,
-    timeout_ms: 60000
+    timeout_ms: 60000,
+    default_model: 'anthropic/claude-sonnet-4'
   },
   ollama: {
     name: 'Ollama',
     base_url: 'http://localhost:11434/v1',
     wire_api: 'chat_completions',
     request_max_retries: 0,
-    timeout_ms: 120000
+    timeout_ms: 120000,
+    default_model: 'qwen2.5'
   },
   lmstudio: {
     name: 'LM Studio',
     base_url: 'http://localhost:1234/v1',
     wire_api: 'chat_completions',
     request_max_retries: 0,
-    timeout_ms: 120000
+    timeout_ms: 120000,
+    default_model: 'local-model'
+  },
+  vllm: {
+    name: 'vLLM',
+    base_url: 'http://localhost:8000/v1',
+    wire_api: 'chat_completions',
+    request_max_retries: 0,
+    timeout_ms: 120000,
+    default_model: 'Qwen/Qwen2.5-7B-Instruct'
+  },
+  llamacpp: {
+    name: 'llama.cpp server',
+    base_url: 'http://localhost:8080/v1',
+    wire_api: 'chat_completions',
+    request_max_retries: 0,
+    timeout_ms: 120000,
+    default_model: 'local-model'
+  },
+  localai: {
+    name: 'LocalAI',
+    base_url: 'http://localhost:8080/v1',
+    wire_api: 'chat_completions',
+    request_max_retries: 0,
+    timeout_ms: 120000,
+    default_model: 'local-model'
+  },
+  dashscope: {
+    name: 'Alibaba Cloud DashScope',
+    base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    env_key: 'DASHSCOPE_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'qwen-plus'
+  },
+  tongyi: {
+    name: 'Tongyi Qianwen',
+    base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    env_key: 'DASHSCOPE_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'qwen-plus'
+  },
+  qwen: {
+    name: 'Qwen via DashScope',
+    base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    env_key: 'DASHSCOPE_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'qwen-plus'
+  },
+  deepseek: {
+    name: 'DeepSeek',
+    base_url: 'https://api.deepseek.com',
+    env_key: 'DEEPSEEK_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'deepseek-v4-flash'
+  },
+  moonshot: {
+    name: 'Moonshot AI',
+    base_url: 'https://api.moonshot.cn/v1',
+    env_key: 'MOONSHOT_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'moonshot-v1-8k'
+  },
+  kimi: {
+    name: 'Kimi via Moonshot AI',
+    base_url: 'https://api.moonshot.cn/v1',
+    env_key: 'MOONSHOT_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'moonshot-v1-8k'
+  },
+  zhipu: {
+    name: 'Zhipu AI',
+    base_url: 'https://open.bigmodel.cn/api/paas/v4',
+    env_key: 'ZHIPUAI_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'glm-4-flash'
+  },
+  bigmodel: {
+    name: 'BigModel / Zhipu AI',
+    base_url: 'https://open.bigmodel.cn/api/paas/v4',
+    env_key: 'ZHIPUAI_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'glm-4-flash'
+  },
+  glm: {
+    name: 'GLM via Zhipu AI',
+    base_url: 'https://open.bigmodel.cn/api/paas/v4',
+    env_key: 'ZHIPUAI_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'glm-4-flash'
+  },
+  qianfan: {
+    name: 'Baidu Qianfan',
+    base_url: 'https://qianfan.baidubce.com/v2',
+    env_key: 'QIANFAN_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'ernie-4.0-turbo-8k'
+  },
+  wenxin: {
+    name: 'Wenxin via Baidu Qianfan',
+    base_url: 'https://qianfan.baidubce.com/v2',
+    env_key: 'QIANFAN_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'ernie-4.0-turbo-8k'
+  },
+  volcengine_ark: {
+    name: 'Volcengine Ark',
+    base_url: 'https://ark.cn-beijing.volces.com/api/v3',
+    env_key: 'ARK_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'doubao-seed-1-6-250615'
+  },
+  doubao: {
+    name: 'Doubao via Volcengine Ark',
+    base_url: 'https://ark.cn-beijing.volces.com/api/v3',
+    env_key: 'ARK_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'doubao-seed-1-6-250615'
+  },
+  tencent_hunyuan: {
+    name: 'Tencent Hunyuan',
+    base_url: 'https://api.hunyuan.cloud.tencent.com/v1',
+    env_key: 'HUNYUAN_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'hunyuan-turbos-latest'
+  },
+  hunyuan: {
+    name: 'Hunyuan via Tencent',
+    base_url: 'https://api.hunyuan.cloud.tencent.com/v1',
+    env_key: 'HUNYUAN_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'hunyuan-turbos-latest'
+  },
+  siliconflow: {
+    name: 'SiliconFlow',
+    base_url: 'https://api.siliconflow.cn/v1',
+    env_key: 'SILICONFLOW_API_KEY',
+    wire_api: 'chat_completions',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'Qwen/Qwen2.5-7B-Instruct'
+  },
+  minimax: {
+    name: 'MiniMax',
+    base_url: 'https://api.minimax.chat/v1',
+    env_key: 'MINIMAX_API_KEY',
+    wire_api: 'chat_completions',
+    response_format: 'none',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'MiniMax-M1'
+  },
+  baichuan: {
+    name: 'Baichuan AI',
+    base_url: 'https://api.baichuan-ai.com/v1',
+    env_key: 'BAICHUAN_API_KEY',
+    wire_api: 'chat_completions',
+    response_format: 'none',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'Baichuan4-Turbo'
+  },
+  yi: {
+    name: '01.AI Yi',
+    base_url: 'https://api.lingyiwanwu.com/v1',
+    env_key: 'YI_API_KEY',
+    wire_api: 'chat_completions',
+    response_format: 'none',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'yi-large'
+  },
+  stepfun: {
+    name: 'StepFun',
+    base_url: 'https://api.stepfun.com/v1',
+    env_key: 'STEPFUN_API_KEY',
+    wire_api: 'chat_completions',
+    response_format: 'none',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'step-1-8k'
+  },
+  modelscope: {
+    name: 'ModelScope',
+    base_url: 'https://api-inference.modelscope.cn/v1',
+    env_key: 'MODELSCOPE_API_KEY',
+    wire_api: 'chat_completions',
+    response_format: 'none',
+    request_max_retries: 2,
+    timeout_ms: 60000,
+    default_model: 'Qwen/Qwen2.5-7B-Instruct'
   }
 };
 
@@ -108,20 +330,27 @@ function readConfigFile(configPath, env) {
 }
 
 function defaultConfigPaths(env) {
-  const home = env.LOCAL_TASK_AGENT_HOME || env.USERPROFILE || env.HOME;
-  return [resolve('.local-task-agent/config.toml'), home ? join(home, '.local-task-agent', 'config.toml') : null];
+  const home = env.N_AGENT_HOME || env.USERPROFILE || env.HOME;
+  return [
+    resolve('.n-agent/config.toml'),
+    home ? join(home, '.n-agent', 'config.toml') : null
+  ];
 }
 
 function configFromEnv(env) {
   const config = { env };
-  if (env.LOCAL_TASK_AGENT_MODEL) config.model = env.LOCAL_TASK_AGENT_MODEL;
-  if (env.LOCAL_TASK_AGENT_MODEL_PROVIDER) config.model_provider = env.LOCAL_TASK_AGENT_MODEL_PROVIDER;
-  if (env.LOCAL_TASK_AGENT_BASE_URL) {
-    setDotted(config, `model_providers.${env.LOCAL_TASK_AGENT_MODEL_PROVIDER || 'custom'}.base_url`, env.LOCAL_TASK_AGENT_BASE_URL);
-    config.model_provider = env.LOCAL_TASK_AGENT_MODEL_PROVIDER || 'custom';
+  const envModel = env.N_AGENT_MODEL;
+  const envProvider = env.N_AGENT_MODEL_PROVIDER;
+  const envBaseUrl = env.N_AGENT_BASE_URL;
+  const envWireApi = env.N_AGENT_WIRE_API;
+  if (envModel) config.model = envModel;
+  if (envProvider) config.model_provider = envProvider;
+  if (envBaseUrl) {
+    setDotted(config, `model_providers.${envProvider || 'custom'}.base_url`, envBaseUrl);
+    config.model_provider = envProvider || 'custom';
   }
-  if (env.LOCAL_TASK_AGENT_WIRE_API) {
-    setDotted(config, `model_providers.${env.LOCAL_TASK_AGENT_MODEL_PROVIDER || config.model_provider || 'custom'}.wire_api`, env.LOCAL_TASK_AGENT_WIRE_API);
+  if (envWireApi) {
+    setDotted(config, `model_providers.${envProvider || config.model_provider || 'custom'}.wire_api`, envWireApi);
   }
   return config;
 }

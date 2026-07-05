@@ -1,14 +1,15 @@
 {
-  "name": "local-task-agent-js",
+  "name": "n-agent",
   "version": "0.1.0",
-  "description": "Local Task Understanding and Task Decomposition agent in JavaScript.",
+  "description": "N-Agent: local task understanding and task decomposition in JavaScript.",
   "type": "module",
   "bin": {
-    "local-task-agent": "./src/cli.js"
+    "nagent": "./src/cli.js",
+    "n-agent": "./src/cli.js"
   },
   "scripts": {
     "test": "node --test",
-    "smoke": "node ./src/cli.js -p \"implement TaskSpec schema, TaskSpec verifier, TaskPlan schema, and DAG verifier\""
+    "smoke": "node ./src/cli.js providers"
   },
   "keywords": [
     "agent",

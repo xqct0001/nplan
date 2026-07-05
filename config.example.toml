@@ -38,10 +38,196 @@ wire_api = "chat_completions"
 request_max_retries = 0
 timeout_ms = 120000
 
+[model_providers.vllm]
+name = "vLLM"
+base_url = "http://localhost:8000/v1"
+wire_api = "chat_completions"
+request_max_retries = 0
+timeout_ms = 120000
+
+[model_providers.llamacpp]
+name = "llama.cpp server"
+base_url = "http://localhost:8080/v1"
+wire_api = "chat_completions"
+request_max_retries = 0
+timeout_ms = 120000
+
+[model_providers.localai]
+name = "LocalAI"
+base_url = "http://localhost:8080/v1"
+wire_api = "chat_completions"
+request_max_retries = 0
+timeout_ms = 120000
+
 [model_providers.dashscope]
 name = "DashScope"
 base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 env_key = "DASHSCOPE_API_KEY"
 wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.tongyi]
+name = "Tongyi Qianwen"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+env_key = "DASHSCOPE_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.qwen]
+name = "Qwen via DashScope"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+env_key = "DASHSCOPE_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.deepseek]
+name = "DeepSeek"
+base_url = "https://api.deepseek.com"
+env_key = "DEEPSEEK_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.moonshot]
+name = "Moonshot AI"
+base_url = "https://api.moonshot.cn/v1"
+env_key = "MOONSHOT_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.kimi]
+name = "Kimi via Moonshot AI"
+base_url = "https://api.moonshot.cn/v1"
+env_key = "MOONSHOT_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.zhipu]
+name = "Zhipu AI"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+env_key = "ZHIPUAI_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.bigmodel]
+name = "BigModel / Zhipu AI"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+env_key = "ZHIPUAI_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.glm]
+name = "GLM via Zhipu AI"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+env_key = "ZHIPUAI_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.qianfan]
+name = "Baidu Qianfan"
+base_url = "https://qianfan.baidubce.com/v2"
+env_key = "QIANFAN_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.wenxin]
+name = "Wenxin via Baidu Qianfan"
+base_url = "https://qianfan.baidubce.com/v2"
+env_key = "QIANFAN_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.volcengine_ark]
+name = "Volcengine Ark"
+base_url = "https://ark.cn-beijing.volces.com/api/v3"
+env_key = "ARK_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.doubao]
+name = "Doubao via Volcengine Ark"
+base_url = "https://ark.cn-beijing.volces.com/api/v3"
+env_key = "ARK_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.tencent_hunyuan]
+name = "Tencent Hunyuan"
+base_url = "https://api.hunyuan.cloud.tencent.com/v1"
+env_key = "HUNYUAN_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.hunyuan]
+name = "Hunyuan via Tencent"
+base_url = "https://api.hunyuan.cloud.tencent.com/v1"
+env_key = "HUNYUAN_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.siliconflow]
+name = "SiliconFlow"
+base_url = "https://api.siliconflow.cn/v1"
+env_key = "SILICONFLOW_API_KEY"
+wire_api = "chat_completions"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.minimax]
+name = "MiniMax"
+base_url = "https://api.minimax.chat/v1"
+env_key = "MINIMAX_API_KEY"
+wire_api = "chat_completions"
+response_format = "none"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.baichuan]
+name = "Baichuan AI"
+base_url = "https://api.baichuan-ai.com/v1"
+env_key = "BAICHUAN_API_KEY"
+wire_api = "chat_completions"
+response_format = "none"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.yi]
+name = "01.AI Yi"
+base_url = "https://api.lingyiwanwu.com/v1"
+env_key = "YI_API_KEY"
+wire_api = "chat_completions"
+response_format = "none"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.stepfun]
+name = "StepFun"
+base_url = "https://api.stepfun.com/v1"
+env_key = "STEPFUN_API_KEY"
+wire_api = "chat_completions"
+response_format = "none"
+request_max_retries = 2
+timeout_ms = 60000
+
+[model_providers.modelscope]
+name = "ModelScope"
+base_url = "https://api-inference.modelscope.cn/v1"
+env_key = "MODELSCOPE_API_KEY"
+wire_api = "chat_completions"
+response_format = "none"
 request_max_retries = 2
 timeout_ms = 60000

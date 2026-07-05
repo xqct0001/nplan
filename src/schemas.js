@@ -5,7 +5,10 @@ export const TASKSPEC_REQUIRED_FIELDS = [
   'surface_request',
   'inferred_goal',
   'task_type',
+  'audience',
+  'target_object',
   'deliverables',
+  'output_format',
   'constraints',
   'known_inputs',
   'missing_information',
@@ -13,7 +16,10 @@ export const TASKSPEC_REQUIRED_FIELDS = [
   'ambiguities',
   'success_criteria',
   'clarification',
+  'checkpoint_policy',
+  'quality_bar',
   'planning_readiness',
+  'risk_level',
   'provenance'
 ];
 
@@ -72,11 +78,25 @@ export const TASKSPEC_SCHEMA = {
         'unknown'
       ]
     },
+    audience: { type: 'string' },
+    target_object: { type: 'string' },
     deliverables: { type: 'array' },
+    output_format: {
+      type: 'string',
+      enum: ['json', 'markdown', 'yaml', 'text', 'diagram', 'code', 'mixed', 'unknown']
+    },
     constraints: { type: 'object' },
+    context_requirements: { type: 'array' },
+    source_map: { type: 'array' },
+    evidence_map: { type: 'array' },
+    context_report: { type: 'object' },
+    conflict_report: { type: 'object' },
     missing_information: { type: 'object' },
     clarification: { type: 'object' },
-    planning_readiness: { type: 'object' }
+    checkpoint_policy: { type: 'object' },
+    quality_bar: { type: 'array' },
+    planning_readiness: { type: 'object' },
+    risk_level: { type: 'string', enum: ['low', 'medium', 'high', 'unknown'] }
   }
 };
 

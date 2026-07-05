@@ -7,7 +7,10 @@ export function buildPlannerInput(taskspec, contextDigest = null, plannerPolicy 
       contextDigest || {
         project_notes: taskspec.background_context || [],
         instruction_files: taskspec.provenance?.files_used || [],
-        conversation_summary: taskspec.surface_request || ''
+        conversation_summary: taskspec.surface_request || '',
+        source_count: taskspec.context_report?.source_count || 0,
+        evidence_count: taskspec.context_report?.evidence_count || 0,
+        conflict_summary: taskspec.conflict_report || { blocking: [], non_blocking: [] }
       },
     planner_policy: { ...DEFAULT_PLANNER_POLICY, ...plannerPolicy }
   };

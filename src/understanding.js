@@ -39,19 +39,26 @@ export function compileTaskSpec(surfaceRequest, context = {}) {
     surface_request: text,
     inferred_goal: inferGoal(deliverables, blocking),
     task_type: classifyTaskType(text),
+    audience: inferAudience(context),
+    target_object: inferTargetObject(text, context, deliverables),
     background_context: listContext(context),
     deliverables: deliverables.length
       ? deliverables
       : [makeDeliverable('unknown', 'unknown', true)],
+    output_format: outputFormatFor(deliverables),
     constraints: {
-      offline_preferred: true,
       time_budget: null,
       model_tier_hint: 'mixed',
       language: 'zh-CN',
-      allowed_tools: ['local_fs', 'local_llm', 'schema_validator'],
-      forbidden_tools: ['code_execution', 'network_access', 'task_execution'],
+      allowed_tools: ['project_context', 'configured_model', 'schema_validator'],
+      forbidden_tools: ['code_execution', 'unauthorized_network_access', 'task_execution'],
       data_sensitivity: 'internal'
     },
+    context_requirements: contextRequirementsFor(text),
+    source_map: normalizeSourceMap(context.source_map),
+    evidence_map: normalizeEvidenceMap(context.evidence_map),
+    context_report: normalizeContextReport(context.context_report),
+    conflict_report: normalizeConflictReport(context.conflict_report),
     known_inputs: knownInputs(context),
     missing_information: { blocking, non_blocking: [] },
     assumptions: blocking.length
@@ -64,10 +71,13 @@ export function compileTaskSpec(surfaceRequest, context = {}) {
       questions: clarificationQuestions(blocking),
       reason: blocking.length ? 'blocking information is missing' : 'ready to plan'
     },
+    checkpoint_policy: defaultCheckpointPolicy(),
+    quality_bar: qualityBarFor(deliverables, blocking),
     planning_readiness: { score, decision },
+    risk_level: riskLevelFor(text, blocking),
     provenance: {
       conversation_turns_used: text ? [text] : [],
-      files_used: [...(context.files || [])],
+      files_used: filesUsed(context),
       model_used: false
     }
   };
@@ -84,8 +94,18 @@ export function composeTaskSpecFromModel(surfaceRequest, modelDraft, context = {
     ...local,
     inferred_goal: stringOr(modelDraft.inferred_goal, local.inferred_goal),
     task_type: stringOr(modelDraft.task_type, local.task_type),
+    audience: stringOr(modelDraft.audience, local.audience),
+    target_object: stringOr(modelDraft.target_object, local.target_object),
     deliverables: deliverables.length ? deliverables : local.deliverables,
-    constraints: { ...local.constraints, ...(modelDraft.constraints || {}) },
+    output_format: normalizedOutputFormat(modelDraft.output_format, deliverables, local.output_format),
+    constraints: normalizeConstraints(local.constraints, modelDraft.constraints),
+    context_requirements: arrayOfStrings(modelDraft.context_requirements).length
+      ? arrayOfStrings(modelDraft.context_requirements)
+      : local.context_requirements,
+    source_map: local.source_map,
+    evidence_map: local.evidence_map,
+    context_report: local.context_report,
+    conflict_report: local.conflict_report,
     missing_information: normalizeMissing(modelDraft.missing_information),
     assumptions: arrayOfStrings(modelDraft.assumptions),
     ambiguities: arrayOfStrings(modelDraft.ambiguities),
@@ -97,13 +117,18 @@ export function composeTaskSpecFromModel(surfaceRequest, modelDraft, context = {
       questions: blocking.map((item) => `Please clarify: ${item}`),
       reason: blocking.length ? 'blocking information is missing' : 'ready to plan'
     },
+    checkpoint_policy: normalizeCheckpointPolicy(modelDraft.checkpoint_policy, local.checkpoint_policy),
+    quality_bar: arrayOfStrings(modelDraft.quality_bar).length
+      ? arrayOfStrings(modelDraft.quality_bar)
+      : local.quality_bar,
     planning_readiness: {
       score,
       decision: blocking.length ? 'clarify_then_plan' : 'ready'
     },
+    risk_level: normalizeRiskLevel(modelDraft.risk_level, local.risk_level),
     provenance: {
       conversation_turns_used: text ? [text] : [],
-      files_used: [...(context.files || [])],
+      files_used: filesUsed(context),
       model_used: true
     }
   };
@@ -161,6 +186,94 @@ function inferGoal(deliverables, blocking) {
   return `Create verified local planning artifacts for ${deliverables.map((item) => item.name).join(', ')}`;
 }
 
+function inferAudience(context) {
+  return stringOr(context.audience, 'human reviewer or downstream executor');
+}
+
+function inferTargetObject(text, context, deliverables) {
+  if (context.target_object) return String(context.target_object);
+  if (context.files?.length) return 'local project context';
+  if (deliverables.length) return 'planning artifacts';
+  return text ? 'user request' : 'unknown';
+}
+
+function outputFormatFor(deliverables) {
+  if (!deliverables.length) return 'unknown';
+  const formats = new Set(deliverables.map((item) => item.format || 'unknown'));
+  if (formats.size === 1) return [...formats][0];
+  return 'mixed';
+}
+
+function defaultCheckpointPolicy() {
+  return {
+    stop_on: [
+      'blocking_missing_information',
+      'task_scope_change',
+      'irreversible_action_requested',
+      'unauthorized_tool_required',
+      'unauthorized_network_action',
+      'validation_failure'
+    ],
+    requires_user_confirmation_for: [
+      'task_execution',
+      'file_editing',
+      'external_network_action',
+      'remote_agent_management'
+    ]
+  };
+}
+
+function qualityBarFor(deliverables, blocking) {
+  if (blocking.length) {
+    return [
+      'blocking information is explicit',
+      'clarification questions are actionable',
+      'no task plan is produced before readiness'
+    ];
+  }
+  return [
+    'required deliverables are explicit',
+    'success criteria are verifiable',
+    'task boundaries and assumptions are visible',
+    deliverables.length ? 'deliverables can be covered by task outputs' : 'missing deliverables are surfaced'
+  ];
+}
+
+function riskLevelFor(text, blocking) {
+  const lowered = text.toLowerCase();
+  const highRiskTerms = [
+    'delete',
+    'remove',
+    'overwrite',
+    'deploy',
+    'send',
+    'purchase',
+    'commit',
+    '删除',
+    '移除',
+    '覆盖',
+    '部署',
+    '发送',
+    '购买',
+    '提交'
+  ];
+  if (highRiskTerms.some((term) => lowered.includes(term))) return 'high';
+  if (blocking.length) return 'medium';
+  return 'low';
+}
+
+function contextRequirementsFor(text) {
+  const lowered = text.toLowerCase();
+  const requirements = ['surface_request'];
+  if (['doc', 'document', 'readme', 'report', '文档', '报告'].some((term) => lowered.includes(term))) {
+    requirements.push('local_documents');
+  }
+  if (['code', 'src', 'test', 'schema', '代码', '测试'].some((term) => lowered.includes(term))) {
+    requirements.push('project_code');
+  }
+  return requirements;
+}
+
 function clarificationQuestions(blocking) {
   if (blocking.includes('final deliverable') || blocking.includes('required deliverables')) {
     return ['What final deliverable do you expect?'];
@@ -169,7 +282,11 @@ function clarificationQuestions(blocking) {
 }
 
 function listContext(context) {
-  return [...(context.files || []), ...(context.project_notes || [])];
+  return [
+    ...(context.files || []),
+    ...(context.project_notes || []),
+    ...normalizeEvidenceMap(context.evidence_map).map((item) => item.evidence_id)
+  ];
 }
 
 function knownInputs(context) {
@@ -190,6 +307,99 @@ function normalizeDeliverables(deliverables) {
           required: item.required !== false
         }))
     : [];
+}
+
+function normalizeSourceMap(value) {
+  return Array.isArray(value)
+    ? value
+        .filter((item) => item && item.source_id)
+        .map((item) => ({
+          source_id: String(item.source_id),
+          kind: String(item.kind || 'unknown'),
+          path: String(item.path || ''),
+          relative_path: String(item.relative_path || item.path || ''),
+          hash: String(item.hash || ''),
+          mtime: String(item.mtime || ''),
+          size_bytes: Number(item.size_bytes || 0),
+          parser_version: String(item.parser_version || 'unknown'),
+          span: item.span || null
+        }))
+    : [];
+}
+
+function normalizeEvidenceMap(value) {
+  return Array.isArray(value)
+    ? value
+        .filter((item) => item && item.evidence_id && item.source_id)
+        .map((item) => ({
+          evidence_id: String(item.evidence_id),
+          source_id: String(item.source_id),
+          span: item.span || null,
+          text: String(item.text || ''),
+          claim_type: String(item.claim_type || 'unknown'),
+          confidence: Number.isFinite(Number(item.confidence)) ? Number(item.confidence) : null
+        }))
+    : [];
+}
+
+function normalizeContextReport(value) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value
+    : { source_count: 0, evidence_count: 0, dropped_source_count: 0, warnings: [] };
+}
+
+function normalizeConflictReport(value) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? {
+        blocking: Array.isArray(value.blocking) ? value.blocking : [],
+        non_blocking: Array.isArray(value.non_blocking) ? value.non_blocking : [],
+        resolutions: Array.isArray(value.resolutions) ? value.resolutions : []
+      }
+    : { blocking: [], non_blocking: [], resolutions: [] };
+}
+
+function filesUsed(context) {
+  const sourceFiles = normalizeSourceMap(context.source_map).map((source) => source.path).filter(Boolean);
+  return sourceFiles.length ? sourceFiles : [...(context.files || [])];
+}
+
+function normalizedOutputFormat(value, deliverables, fallback) {
+  const allowed = new Set(['json', 'markdown', 'yaml', 'text', 'diagram', 'code', 'mixed', 'unknown']);
+  if (typeof value === 'string' && allowed.has(value)) return value;
+  if (deliverables.length) return outputFormatFor(deliverables);
+  return fallback;
+}
+
+function normalizeCheckpointPolicy(value, fallback) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback;
+  const stopOn = arrayOfStrings(value.stop_on);
+  const confirmations = arrayOfStrings(value.requires_user_confirmation_for);
+  return {
+    stop_on: stopOn.length ? stopOn : fallback.stop_on,
+    requires_user_confirmation_for: confirmations.length
+      ? confirmations
+      : fallback.requires_user_confirmation_for
+  };
+}
+
+function normalizeRiskLevel(value, fallback) {
+  return ['low', 'medium', 'high', 'unknown'].includes(value) ? value : fallback;
+}
+
+function normalizeConstraints(base, value) {
+  const incoming = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const merged = { ...base, ...incoming };
+  delete merged.offline_preferred;
+  if (Array.isArray(merged.forbidden_tools)) {
+    merged.forbidden_tools = [
+      ...new Set(
+        merged.forbidden_tools.map((tool) =>
+          tool === 'network_access' ? 'unauthorized_network_access' : String(tool)
+        )
+      )
+    ];
+  }
+  return merged;
 }
 
 function normalizeMissing(value) {

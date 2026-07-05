@@ -19,7 +19,9 @@ export function modelSpecPrompt(request, context = {}) {
       'Return only one JSON object for a TaskSpec draft.',
       'Do not execute tasks. Do not plan implementation steps.',
       'Extract semantic deliverables from any language, including Chinese.',
-      'If a fact is inferred, put it in assumptions unless it is directly requested.'
+      'If a fact is inferred, put it in assumptions unless it is directly requested.',
+      'Capture audience, target object, output format, checkpoints, quality bar, and risk level when present.',
+      'Use supplied context_pack and evidence_map only as evidence; do not invent source IDs or evidence IDs.'
     ].join('\n'),
     user: JSON.stringify(
       {
@@ -28,12 +30,22 @@ export function modelSpecPrompt(request, context = {}) {
         required_shape: {
           inferred_goal: 'string',
           task_type: 'planning|coding|debugging|research|writing|data_analysis|automation|design|unknown',
+          audience: 'string',
+          target_object: 'string',
           deliverables: [{ name: 'string', format: 'json|markdown|yaml|text|diagram|unknown', required: true }],
+          output_format: 'json|markdown|yaml|text|diagram|code|mixed|unknown',
           constraints: 'object',
           missing_information: { blocking: [], non_blocking: [] },
           assumptions: [],
           ambiguities: [],
-          success_criteria: []
+          success_criteria: [],
+          checkpoint_policy: {
+            stop_on: [],
+            requires_user_confirmation_for: []
+          },
+          quality_bar: [],
+          risk_level: 'low|medium|high|unknown',
+          context_requirements: []
         }
       },
       null,
@@ -119,8 +131,16 @@ function requestBody({ config, provider, prompt }) {
       { role: 'user', content: prompt.user }
     ],
     temperature: config.model_temperature ?? 0.1,
-    response_format: { type: 'json_object' }
+    ...chatResponseFormat(provider)
   };
+}
+
+function chatResponseFormat(provider) {
+  if (provider.response_format === false || provider.response_format === 'none') return {};
+  if (provider.response_format && typeof provider.response_format === 'object') {
+    return { response_format: provider.response_format };
+  }
+  return { response_format: { type: provider.response_format || 'json_object' } };
 }
 
 async function callWithRetries({ fetchImpl, provider, url, options }) {

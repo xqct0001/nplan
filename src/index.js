@@ -1,5 +1,7 @@
 export { LocalPlanningAgent } from './agent.js';
+export { curateContext } from './context-curator.js';
 export { collectContext } from './context.js';
+export { detectRequestConflicts } from './conflicts.js';
 export { buildPlannerInput, planFromTaskSpec } from './planning.js';
 export { OpenAICompatibleTaskModel, callModelForTaskSpec } from './model-client.js';
 export { loadModelConfig, parseConfigOverrides, resolveModelProvider } from './model-config.js';
@@ -13,5 +15,7 @@ export {
   makeDeliverable,
   makeTask
 } from './schemas.js';
+export { makeEvidenceItem, makeSourceRef } from './provenance.js';
+export { extractMarkdownLinks, knowledgeMetadataForText, parseKnowledgeDocument } from './okf.js';
 export { compileTaskSpec, composeTaskSpecFromModel, stripPromptArtifacts } from './understanding.js';
 export { validateTaskPlan, validateTaskSpec } from './validation.js';

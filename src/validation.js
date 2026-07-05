@@ -18,6 +18,12 @@ export function validateTaskSpec(spec) {
   const questions = asArray(clarification.questions);
   const deliverables = asArray(spec?.deliverables);
   const successCriteria = asArray(spec?.success_criteria);
+  const outputFormat = spec?.output_format;
+  const checkpointPolicy = isObject(spec?.checkpoint_policy) ? spec.checkpoint_policy : {};
+  const qualityBar = asArray(spec?.quality_bar);
+  const riskLevel = spec?.risk_level;
+  const contextConflicts = isObject(spec?.conflict_report) ? spec.conflict_report : {};
+  const contextBlocking = asArray(contextConflicts.blocking);
 
   if (blocking.length && decision === 'ready') conflicts.push('blocking_info_but_marked_ready');
   if (requiresClarification && !questions.length) conflicts.push('clarification_without_questions');
@@ -26,11 +32,18 @@ export function validateTaskSpec(spec) {
   }
   if (!deliverables.length) conflicts.push('no_deliverables');
   if (!successCriteria.length) conflicts.push('no_success_criteria');
+  if (!validOutputFormat(outputFormat)) conflicts.push('invalid_output_format');
+  if (!asArray(checkpointPolicy.stop_on).length) conflicts.push('checkpoint_policy_without_stop_rules');
+  if (!qualityBar.length) conflicts.push('no_quality_bar');
+  if (!['low', 'medium', 'high', 'unknown'].includes(riskLevel)) conflicts.push('invalid_risk_level');
+  if (contextBlocking.length) conflicts.push('blocking_context_conflicts');
+  if (evidenceWithoutSource(spec).length) conflicts.push('evidence_without_source');
 
   const readyForPlanning =
     !missingRequired.length &&
     !conflicts.length &&
     !blocking.length &&
+    !contextBlocking.length &&
     decision === 'ready' &&
     (score === null || score >= 0.6);
 
@@ -156,4 +169,13 @@ function taskLimitReport(plan, tasks) {
 
 function nameOf(value) {
   return String(isObject(value) ? value.name || '' : value).trim();
+}
+
+function validOutputFormat(value) {
+  return ['json', 'markdown', 'yaml', 'text', 'diagram', 'code', 'mixed', 'unknown'].includes(value);
+}
+
+function evidenceWithoutSource(spec) {
+  const sources = new Set(asArray(spec?.source_map).map((item) => item?.source_id).filter(Boolean));
+  return asArray(spec?.evidence_map).filter((item) => item?.source_id && !sources.has(item.source_id));
 }
