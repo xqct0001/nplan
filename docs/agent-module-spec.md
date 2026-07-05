@@ -14,8 +14,9 @@ The module accepts a user request plus optional local context and returns:
 - deterministic validation reports for both artifacts.
 
 It does not execute tasks, run shell commands, edit code, use arbitrary network
-tools, create a UI, or manage remote agents. The only network-capable path is a
-configured model provider used for semantic task understanding.
+tools, create a UI, or manage remote agents. Network use is limited to configured
+model provider calls for semantic task understanding and user-confirmed setup
+model-list requests to provider endpoints.
 
 ## JavaScript File Boundary
 
@@ -78,9 +79,11 @@ Use Node.js only:
 ```powershell
 node --test
 node --check src/cli.js
+node --check src/model-config.js
+node --check src/model-init.js
+node --check src/model-wizard.js
 node --check src/context-curator.js
 node --check src/provenance.js
-nplan -p "implement TaskSpec schema, TaskSpec verifier, TaskPlan schema, and DAG verifier"
 ```
 
 ## CLI Interaction
@@ -90,6 +93,7 @@ The CLI mirrors a safe subset of Codex's interaction shape:
 - no arguments: start an interactive session
 - quoted prompt: start an interactive session with an initial prompt
 - `-p` / `--print`: print one JSON result and exit
+- `setup`: guided provider/API key/model configuration
 - piped stdin with print mode: include stdin as additional prompt context
 - slash commands: `/help`, `/providers`, `/status`, `/plan`, `/json`, `/clear`,
   `/exit`, `/quit`
@@ -136,9 +140,10 @@ wire_api = "chat_completions"
 ```
 
 When the model succeeds, `TaskSpec.provenance.model_used` is `true`. If no model
-is configured, interactive mode starts and guides setup while print mode exits
-with a model-required error. If a configured model call fails or returns invalid
-JSON, the analysis fails instead of falling back to local rules.
+is configured, interactive mode starts and tells the user to run `nplan.cmd setup`,
+while print mode exits with a model-required error. If a configured model call
+fails or returns invalid JSON, the analysis fails instead of falling back to
+local rules.
 
 ## Context Curator Lite
 

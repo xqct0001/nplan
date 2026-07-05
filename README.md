@@ -2,68 +2,44 @@
 
 Language: English | [简体中文](README.zh-CN.md)
 
-NPlan is a local task understanding and task decomposition module for
-turning a natural-language request into structured planning artifacts.
+NPlan is a local task understanding and task decomposition module. It turns a
+natural-language request into structured planning artifacts.
 
-It is intentionally planning-only. NPlan does not execute tasks, edit files,
-run shell commands, create user interfaces, or manage remote agents. Its job is
-to understand the request, ground that understanding in local context, and
-produce a bounded plan that another executor can review or run later.
+NPlan is intentionally planning-only. It does not execute tasks, edit files, run
+shell commands, create user interfaces, or manage remote agents. Its job is to
+understand the request, ground that understanding in local context, and produce a
+bounded plan that another executor can review or run later.
 
 ## Core Capabilities
 
-- Produces a validated `TaskSpec` describing the user's goal, deliverables,
-  constraints, missing information, assumptions, success criteria, risk level,
-  provenance, and planning readiness.
+- Produces a validated `TaskSpec` with goal, deliverables, constraints, missing
+  information, assumptions, success criteria, risk, provenance, and readiness.
 - Produces a validated `TaskPlan`: a bounded DAG with task inputs, outputs,
   dependencies, and acceptance checks.
 - Builds a read-only `ContextPack` from local project files before model
-  inference, including `source_map`, `evidence_map`, `context_report`, and
-  `conflict_report`.
-- Supports OKF-style local knowledge documents: Markdown files with YAML
-  frontmatter, one concept per file, links between concepts, and citations.
+  inference.
+- Supports OKF-style local knowledge documents.
 - Uses configurable OpenAI-compatible model providers for semantic task
-  understanding, including common local runtimes and major Chinese providers.
-
-## Installation
-
-NPlan has no npm runtime dependencies.
-
-```powershell
-npm link
-```
-
-After linking, use:
-
-```powershell
-nplan
-```
+  understanding.
 
 ## Quick Start
 
-Configure a model provider:
+Use this PowerShell flow:
 
 ```powershell
-nplan init --provider ollama --model qwen2.5
+npm.cmd link
+nplan.cmd setup
+nplan.cmd -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
 ```
 
-Or use a cloud provider:
-
-```powershell
-$env:DASHSCOPE_API_KEY = "<your-key>"
-nplan init --provider qwen --model qwen-plus
-```
-
-Run one planning request and print JSON:
-
-```powershell
-nplan -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
-```
+`nplan.cmd setup` lets you choose a provider, paste an API key, fetch model
+choices from the provider's OpenAI-compatible model list endpoint when available,
+and write `.nplan/config.toml`.
 
 Start an interactive session:
 
 ```powershell
-nplan
+nplan.cmd
 ```
 
 ## CLI
@@ -72,13 +48,14 @@ nplan
 nplan [options] [prompt]
 
 Commands:
-  init              Configure this project for a model provider
+  setup             Guided provider/API key/model setup wizard
   providers         List built-in model providers
 
 Options:
   -p, --print       Print one JSON result and exit
   --model <name>    Use a model for semantic task understanding
   --provider <id>   Select a model provider
+  --models-url <u>  Model list URL for guided/custom provider setup
   --config-path <p> Load model config TOML
   -c key=value      Override config with dotted keys
 ```
@@ -87,13 +64,12 @@ Interactive commands:
 
 ```text
 /help
-/init [provider] [model]
 /providers
 /status
 /plan <prompt>
 /json
 /clear
-/exit
+/exit, /quit
 ```
 
 Shell execution through `!` is intentionally unsupported.
@@ -103,29 +79,34 @@ Shell execution through `!` is intentionally unsupported.
 List built-ins:
 
 ```powershell
-nplan providers
+nplan.cmd providers
+```
+
+Configure a provider:
+
+```powershell
+nplan.cmd setup
 ```
 
 Supported provider families include:
 
 - Local runtimes: `ollama`, `lmstudio`, `vllm`, `llamacpp`, `localai`
-- General OpenAI-compatible gateways: `openai`, `openrouter`
+- OpenAI-compatible gateways: `openai`, `openrouter`
 - Chinese providers and aliases: `dashscope`, `tongyi`, `qwen`, `deepseek`,
   `moonshot`, `kimi`, `zhipu`, `bigmodel`, `glm`, `qianfan`, `wenxin`,
   `volcengine_ark`, `doubao`, `tencent_hunyuan`, `hunyuan`, `siliconflow`,
   `minimax`, `baichuan`, `yi`, `stepfun`, `modelscope`
 
-Some domestic OpenAI-compatible APIs reject JSON-mode request parameters.
-NPlan supports provider-level compatibility flags such as
-`response_format = "none"` for those providers.
+Some OpenAI-compatible APIs reject JSON-mode request parameters. NPlan supports
+provider-level compatibility flags such as `response_format = "none"` for those
+providers.
 
 See [docs/model-providers.md](docs/model-providers.md) and
 [config.example.toml](config.example.toml).
 
 ## Local Knowledge
 
-NPlan adopts the local, vendor-neutral part of the Knowledge Catalog OKF
-pattern:
+NPlan adopts the local, vendor-neutral part of the Knowledge Catalog OKF pattern:
 
 - Markdown with YAML frontmatter
 - one concept per file
@@ -170,6 +151,7 @@ src/
   model-client.js       OpenAI-compatible model client
   model-config.js       model provider configuration
   model-init.js         project config writer
+  model-wizard.js       guided model setup wizard
   okf.js                OKF-style Markdown parser
   planning.js           TaskPlan DAG generation
   provenance.js         SourceRef and EvidenceItem helpers
@@ -186,12 +168,6 @@ docs/
 ```
 
 ## Development
-
-```powershell
-npm test
-```
-
-For Windows PowerShell environments with restricted script execution:
 
 ```powershell
 npm.cmd test

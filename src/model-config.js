@@ -7,6 +7,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     base_url: 'https://api.openai.com/v1',
     env_key: 'OPENAI_API_KEY',
     wire_api: 'responses',
+    models_url: 'https://api.openai.com/v1/models',
+    api_key_url: 'https://platform.openai.com/settings/organization/api-keys',
     request_max_retries: 2,
     timeout_ms: 60000,
     default_model: 'gpt-5.5'
@@ -16,6 +18,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     base_url: 'https://openrouter.ai/api/v1',
     env_key: 'OPENROUTER_API_KEY',
     wire_api: 'chat_completions',
+    models_url: 'https://openrouter.ai/api/v1/models',
+    api_key_url: 'https://openrouter.ai/settings/keys',
     request_max_retries: 2,
     timeout_ms: 60000,
     default_model: 'anthropic/claude-sonnet-4'
@@ -65,6 +69,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     env_key: 'DASHSCOPE_API_KEY',
     wire_api: 'chat_completions',
+    models_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/models',
+    api_key_url: 'https://bailian.console.aliyun.com/?tab=model#/api-key',
     request_max_retries: 2,
     timeout_ms: 60000,
     default_model: 'qwen-plus'
@@ -74,6 +80,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     env_key: 'DASHSCOPE_API_KEY',
     wire_api: 'chat_completions',
+    models_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/models',
+    api_key_url: 'https://bailian.console.aliyun.com/?tab=model#/api-key',
     request_max_retries: 2,
     timeout_ms: 60000,
     default_model: 'qwen-plus'
@@ -83,6 +91,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     env_key: 'DASHSCOPE_API_KEY',
     wire_api: 'chat_completions',
+    models_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/models',
+    api_key_url: 'https://bailian.console.aliyun.com/?tab=model#/api-key',
     request_max_retries: 2,
     timeout_ms: 60000,
     default_model: 'qwen-plus'
@@ -92,6 +102,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     base_url: 'https://api.deepseek.com',
     env_key: 'DEEPSEEK_API_KEY',
     wire_api: 'chat_completions',
+    models_url: 'https://api.deepseek.com/models',
+    api_key_url: 'https://platform.deepseek.com/api_keys',
     request_max_retries: 2,
     timeout_ms: 60000,
     default_model: 'deepseek-v4-flash'
@@ -101,6 +113,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     base_url: 'https://api.moonshot.cn/v1',
     env_key: 'MOONSHOT_API_KEY',
     wire_api: 'chat_completions',
+    models_url: 'https://api.moonshot.cn/v1/models',
+    api_key_url: 'https://platform.kimi.com/console/api-keys',
     request_max_retries: 2,
     timeout_ms: 60000,
     default_model: 'moonshot-v1-8k'
@@ -110,6 +124,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     base_url: 'https://api.moonshot.cn/v1',
     env_key: 'MOONSHOT_API_KEY',
     wire_api: 'chat_completions',
+    models_url: 'https://api.moonshot.cn/v1/models',
+    api_key_url: 'https://platform.kimi.com/console/api-keys',
     request_max_retries: 2,
     timeout_ms: 60000,
     default_model: 'moonshot-v1-8k'
@@ -119,6 +135,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     base_url: 'https://open.bigmodel.cn/api/paas/v4',
     env_key: 'ZHIPUAI_API_KEY',
     wire_api: 'chat_completions',
+    models_url: 'https://open.bigmodel.cn/api/paas/v4/models',
+    api_key_url: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys',
     request_max_retries: 2,
     timeout_ms: 60000,
     default_model: 'glm-4-flash'
@@ -128,6 +146,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     base_url: 'https://open.bigmodel.cn/api/paas/v4',
     env_key: 'ZHIPUAI_API_KEY',
     wire_api: 'chat_completions',
+    models_url: 'https://open.bigmodel.cn/api/paas/v4/models',
+    api_key_url: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys',
     request_max_retries: 2,
     timeout_ms: 60000,
     default_model: 'glm-4-flash'
@@ -137,6 +157,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     base_url: 'https://open.bigmodel.cn/api/paas/v4',
     env_key: 'ZHIPUAI_API_KEY',
     wire_api: 'chat_completions',
+    models_url: 'https://open.bigmodel.cn/api/paas/v4/models',
+    api_key_url: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys',
     request_max_retries: 2,
     timeout_ms: 60000,
     default_model: 'glm-4-flash'
@@ -164,6 +186,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     base_url: 'https://ark.cn-beijing.volces.com/api/v3',
     env_key: 'ARK_API_KEY',
     wire_api: 'chat_completions',
+    models_url: 'https://ark.cn-beijing.volces.com/api/v3/models',
+    api_key_url: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
     request_max_retries: 2,
     timeout_ms: 60000,
     default_model: 'doubao-seed-1-6-250615'
@@ -173,6 +197,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     base_url: 'https://ark.cn-beijing.volces.com/api/v3',
     env_key: 'ARK_API_KEY',
     wire_api: 'chat_completions',
+    models_url: 'https://ark.cn-beijing.volces.com/api/v3/models',
+    api_key_url: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
     request_max_retries: 2,
     timeout_ms: 60000,
     default_model: 'doubao-seed-1-6-250615'
@@ -200,6 +226,8 @@ export const BUILTIN_MODEL_PROVIDERS = {
     base_url: 'https://api.siliconflow.cn/v1',
     env_key: 'SILICONFLOW_API_KEY',
     wire_api: 'chat_completions',
+    models_url: 'https://api.siliconflow.cn/v1/models',
+    api_key_url: 'https://cloud.siliconflow.cn/account/ak',
     request_max_retries: 2,
     timeout_ms: 60000,
     default_model: 'Qwen/Qwen2.5-7B-Instruct'

@@ -3,7 +3,6 @@ node_modules/
 coverage/
 .nyc_output/
 DOC/
-test/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

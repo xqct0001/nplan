@@ -13,7 +13,7 @@ Configuration is merged in this order:
 
 1. built-in providers
 2. `.nplan/config.toml`
-3. `$NPLAN_HOME/config.toml` or `~/.nplan/config.toml`
+3. `$env:NPLAN_HOME\.nplan\config.toml` or `~/.nplan/config.toml`
 4. environment variables
 5. CLI `-c key=value` overrides
 
@@ -54,31 +54,24 @@ Any OpenAI-compatible provider can be added under
 List the built-ins:
 
 ```powershell
-nplan providers
+nplan.cmd providers
 ```
 
-Initialize or switch this project:
+Recommended setup:
 
 ```powershell
-# Local default, no API key stored
-nplan init --provider ollama --model qwen2.5
-
-# Chinese cloud provider
-nplan init --provider dashscope --model qwen-plus
-$env:DASHSCOPE_API_KEY = "<your-key>"
-
-# Chinese provider aliases are accepted
-nplan init --provider kimi --model moonshot-v1-8k
-$env:MOONSHOT_API_KEY = "<your-key>"
-
-# Some domestic OpenAI-compatible providers reject response_format;
-# built-in configs such as minimax/baichuan/yi/stepfun/modelscope omit it.
-nplan init --provider minimax --model MiniMax-M1
-$env:MINIMAX_API_KEY = "<your-key>"
-
-# Custom OpenAI-compatible endpoint
-nplan init --provider custom --model my-model --base-url http://127.0.0.1:8000/v1 --wire-api chat_completions
+nplan.cmd setup
 ```
+
+`nplan.cmd setup` asks for a provider, API key, and model. For built-in providers it
+uses the provider's OpenAI-compatible model list URL when available. For custom
+providers, paste the model list URL or accept the default `<base_url>/models`.
+If fetching models fails, the wizard falls back to the provider default or a
+manual model name.
+
+When an API key is entered, the wizard can save it in `.nplan/config.toml`.
+That directory is ignored by this repository's `.gitignore`, but environment
+variables remain preferable for shared machines.
 
 ## Example
 
@@ -107,38 +100,11 @@ wire_api = "chat_completions"
 response_format = "none"
 ```
 
-Run:
-
-```powershell
-$env:DASHSCOPE_API_KEY = "<your-key>"
-nplan --config-path .\config.example.toml -p "帮我设计一个本地文件整理工具，可以扫描文件、分类、输出报告、md文件"
-```
-
-One-off override:
-
-```powershell
-nplan `
-  --model "openai/gpt-4.1" `
-  --provider openrouter `
-  -p "Design a file organizer"
-```
-
-Custom provider:
-
-```powershell
-nplan `
-  --model "my-model" `
-  --provider custom `
-  --base-url "http://127.0.0.1:8000/v1" `
-  --wire-api chat_completions `
-  -p "Design a local tool"
-```
-
 ## Model Required Behavior
 
 If no model is configured, interactive mode still starts and guides the user to
-run `nplan init` or `/init`. Print mode exits with a model-required error and
-tells the user to run `nplan init` or pass `--model` / `--provider`.
+run `nplan.cmd setup` from PowerShell. Print mode exits with a model-required
+error and tells the user to run setup.
 
 If a configured model fails or returns invalid JSON, the analysis fails. The
 agent does not fall back to local rules to create a plan.

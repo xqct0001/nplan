@@ -8,27 +8,29 @@ import { LocalPlanningAgent } from './agent.js';
 import { OpenAICompatibleTaskModel } from './model-client.js';
 import { loadModelConfig, parseConfigOverrides } from './model-config.js';
 import { initHint, renderProviderList, writeProjectModelConfig } from './model-init.js';
+import { runModelSetupWizard } from './model-wizard.js';
 
 const APP_NAME = 'NPlan';
 const BIN_NAME = 'nplan';
+const SETUP_COMMAND = 'nplan.cmd setup';
 
 const HELP = `Usage: ${BIN_NAME} [options] [prompt]
 
 Commands:
-  init              Configure this project for a model provider
+  setup             Guided provider/API key/model setup wizard
   providers         List built-in model providers
 
 Options:
   -p, --print       Print one JSON result and exit
   --model <name>    Use a model for semantic task understanding
   --provider <id>   Select model provider (run "${BIN_NAME} providers")
+  --models-url <u>  Model list URL for guided/custom provider setup
   --config-path <p> Load Codex-style model config TOML
   -c key=value      Override config, supports dotted keys
   -h, --help        Show this help
 
 Interactive commands:
   /help             Show commands
-  /init [id] [model] Configure this project for a model provider
   /providers        List built-in model providers
   /status           Show session status
   /plan <prompt>    Analyze a prompt and show a planning summary
@@ -57,8 +59,20 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
     streams.output.write(`${renderProviderList()}\n`);
     return 0;
   }
+  if (parsed.command === 'setup') {
+    try {
+      await runModelSetupWizard({ streams });
+      return 0;
+    } catch (error) {
+      streams.error.write(`setup failed: ${error.message}\n`);
+      return 1;
+    }
+  }
   if (parsed.command === 'init') {
     try {
+      if (!parsed.initHasExplicitConfig) {
+        throw new Error(`use "${SETUP_COMMAND}" for guided setup`);
+      }
       streams.output.write(`${initHint(writeConfigFromArgs(parsed))}\n`);
       return 0;
     } catch (error) {
@@ -107,8 +121,9 @@ export function parseArgs(argv) {
   let command = null;
   const configValues = [];
   const promptParts = [];
+  let initHasExplicitConfig = false;
 
-  if (values[0] === 'init' || values[0] === 'providers') {
+  if (values[0] === 'init' || values[0] === 'providers' || values[0] === 'setup') {
     command = values.shift();
   }
 
@@ -116,23 +131,35 @@ export function parseArgs(argv) {
     const value = values.shift();
     if (value === '-p' || value === '--print') {
       print = true;
+    } else if (value === '--wizard' || value === '--guided') {
+      throw new Error(`use "${SETUP_COMMAND}" for guided setup`);
     } else if (value === '--no-model') {
       throw new Error('--no-model is not supported; configure a model instead');
     } else if (value === '--model') {
+      initHasExplicitConfig = true;
       configValues.push(`model=${requireValue(value, values)}`);
     } else if (value === '--provider' || value === '--model-provider') {
+      initHasExplicitConfig = true;
       configValues.push(`model_provider=${requireValue(value, values)}`);
     } else if (value === '--base-url') {
+      initHasExplicitConfig = true;
       const provider = currentProvider(configValues) || 'custom';
       configValues.push(`model_provider=${provider}`);
       configValues.push(`model_providers.${provider}.base_url=${requireValue(value, values)}`);
     } else if (value === '--wire-api') {
+      initHasExplicitConfig = true;
       const provider = currentProvider(configValues) || 'custom';
       configValues.push(`model_provider=${provider}`);
       configValues.push(`model_providers.${provider}.wire_api=${requireValue(value, values)}`);
+    } else if (value === '--models-url' || value === '--model-list-url') {
+      initHasExplicitConfig = true;
+      const provider = currentProvider(configValues) || 'custom';
+      configValues.push(`model_provider=${provider}`);
+      configValues.push(`model_providers.${provider}.models_url=${requireValue(value, values)}`);
     } else if (value === '--config-path') {
       configPath = requireValue(value, values);
     } else if (value === '-c' || value === '--config') {
+      initHasExplicitConfig = true;
       configValues.push(requireValue(value, values));
     } else if (value === '-h' || value === '--help') {
       help = true;
@@ -145,6 +172,7 @@ export function parseArgs(argv) {
     print,
     help,
     command,
+    initHasExplicitConfig,
     configPath,
     configOverrides: parseConfigOverrides(configValues),
     prompt: promptParts.join(' ').trim()
@@ -198,20 +226,6 @@ async function handleInteractiveLine(line, { state, streams }) {
     streams.output.write(`${renderProviderList()}\n`);
     return false;
   }
-  if (line.startsWith('/init')) {
-    const tokens = line.slice('/init'.length).trim().split(/\s+/).filter(Boolean);
-    const parsed = parseArgs(['init', ...initArgsFromTokens(tokens)]);
-    try {
-      const result = writeConfigFromArgs(parsed);
-      state.runtime = makeRuntime({ noModel: false, configPath: null, configOverrides: {} });
-      state.runtimeError = null;
-      streams.output.write(`${initHint(result)}\n`);
-      streams.output.write(`${runtimeSummary(state)}\n`);
-    } catch (error) {
-      streams.output.write(`init failed: ${error.message}\n`);
-    }
-    return false;
-  }
   if (line === '/status') {
     streams.output.write(
       `status: requests=${state.requests} last=${state.lastResult?.status || 'none'} ${runtimeStatus(state)}\n`
@@ -231,6 +245,14 @@ async function handleInteractiveLine(line, { state, streams }) {
   }
   if (line.startsWith('!')) {
     streams.output.write('Shell execution is not available in NPlan; describe the task instead.\n');
+    return false;
+  }
+  if (line === '/init' || line.startsWith('/init ')) {
+    streams.output.write(`Model setup is available as ${SETUP_COMMAND} in your shell.\n`);
+    return false;
+  }
+  if (line.startsWith('/') && !line.startsWith('/plan ')) {
+    streams.output.write('Unknown command. Use /help for commands.\n');
     return false;
   }
 
@@ -313,9 +335,7 @@ function makeRuntime(parsed) {
     overrides: parsed.configOverrides
   });
   if (!config.model) {
-    throw new Error(
-      `model configuration is required. Run "${BIN_NAME} init --provider <id> --model <name>" or pass --model/--provider.`
-    );
+    throw new Error(`model configuration is required. Run "${SETUP_COMMAND}".`);
   }
   return {
     agent: new LocalPlanningAgent({
@@ -338,7 +358,7 @@ function runtimeStatus(state) {
 
 function setupRequiredMessage(error) {
   const detail = error ? ` (${error})` : '';
-  return `Model setup required${detail}. Run /init ollama qwen2.5 or ${BIN_NAME} init --provider ollama --model qwen2.5.`;
+  return `Model setup required${detail}. Run ${SETUP_COMMAND}.`;
 }
 
 function isModelConfigError(error) {
@@ -352,14 +372,6 @@ function writeConfigFromArgs(parsed) {
     model: parsed.configOverrides.model,
     providerOverrides: parsed.configOverrides.model_providers?.[providerId] || {}
   });
-}
-
-function initArgsFromTokens(tokens) {
-  if (!tokens[0]) return [];
-  if (tokens[0].startsWith('-')) return tokens;
-  const args = ['--provider', tokens[0]];
-  if (tokens[1]) args.push('--model', tokens[1]);
-  return args;
 }
 
 function requireValue(flag, values) {

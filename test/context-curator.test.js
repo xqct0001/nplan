@@ -1,0 +1,143 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { test } from 'node:test';
+
+import {
+  collectContext,
+  curateContext,
+  detectRequestConflicts,
+  parseKnowledgeDocument
+} from '../src/index.js';
+
+test('collectContext builds source map for local text project files', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-context-'));
+  await mkdir(join(dir, 'docs'));
+  await mkdir(join(dir, 'src'));
+  await writeFile(join(dir, 'README.md'), '# 项目说明\n本地规划模块\n', 'utf8');
+  await writeFile(join(dir, 'docs', 'agent.md'), '# Agent\nContext Curator\n', 'utf8');
+  await writeFile(join(dir, 'src', 'agent.js'), 'export const value = 1;\n', 'utf8');
+
+  const context = collectContext(dir);
+
+  assert.equal(context.root, dir);
+  assert.ok(context.source_map.length >= 3);
+  assert.ok(context.source_map.every((source) => source.source_id.startsWith('src_')));
+  assert.ok(context.source_map.every((source) => source.hash.startsWith('sha256:')));
+  assert.ok(context.files.some((file) => file.endsWith('README.md')));
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('collectContext recognizes OKF concepts and ignores external reference repos', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-okf-'));
+  await mkdir(join(dir, 'docs', 'nplan_knowledge', 'concepts'), { recursive: true });
+  await mkdir(join(dir, 'DOC', 'knowledge-catalog'), { recursive: true });
+  await writeFile(join(dir, 'README.md'), '# Project\nLocal task planning.\n', 'utf8');
+  await writeFile(
+    join(dir, 'DOC', 'knowledge-catalog', 'README.md'),
+    '# External reference\nThis should not enter the default context pack.\n',
+    'utf8'
+  );
+  await writeFile(
+    join(dir, 'docs', 'nplan_knowledge', 'concepts', 'context-governance.md'),
+    [
+      '---',
+      'type: Agent Context Concept',
+      'title: Context Governance',
+      'description: Evidence governance for local task planning.',
+      'tags: [context, evidence]',
+      '---',
+      '',
+      '# Purpose',
+      '',
+      'Use bounded evidence from local project sources.'
+    ].join('\n'),
+    'utf8'
+  );
+
+  const context = collectContext(dir);
+  const knowledge = context.source_map.find((source) => source.kind === 'knowledge');
+
+  assert.ok(knowledge);
+  assert.equal(knowledge.knowledge.title, 'Context Governance');
+  assert.deepEqual(knowledge.knowledge.tags, ['context', 'evidence']);
+  assert.equal(
+    context.source_map.some((source) => source.relative_path.includes('knowledge-catalog')),
+    false
+  );
+
+  const curated = curateContext('context evidence governance', {
+    root: dir,
+    context_policy: { max_sources: 2, max_evidence_chars_per_source: 240 }
+  });
+  const evidence = curated.evidence_map.find((item) => item.claim_type === 'knowledge_concept_excerpt');
+
+  assert.ok(evidence);
+  assert.match(evidence.text, /Concept: Context Governance/);
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('parseKnowledgeDocument extracts OKF frontmatter and markdown links', () => {
+  const parsed = parseKnowledgeDocument(
+    [
+      '---',
+      'type: Playbook',
+      'title: Local Context',
+      'tags: [context, retrieval]',
+      '---',
+      '',
+      'See [Evidence](./evidence.md) and [Docs](https://example.com/docs).'
+    ].join('\n')
+  );
+
+  assert.equal(parsed.conformant, true);
+  assert.equal(parsed.frontmatter.type, 'Playbook');
+  assert.deepEqual(parsed.frontmatter.tags, ['context', 'retrieval']);
+  assert.deepEqual(
+    parsed.links.map((link) => link.kind),
+    ['relative', 'external']
+  );
+});
+
+test('curateContext returns evidence pack and blocks irreversible requests', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-curator-'));
+  await writeFile(join(dir, 'README.md'), '# Project\nDo not execute tasks.\n', 'utf8');
+
+  const context = curateContext('delete generated files', {
+    root: dir,
+    context_policy: { max_sources: 2, max_evidence_chars_per_source: 80 }
+  });
+
+  assert.equal(context.source_map.length, 1);
+  assert.equal(context.evidence_map.length, 1);
+  assert.equal(context.evidence_map[0].source_id, context.source_map[0].source_id);
+  assert.equal(context.context_report.source_count, 1);
+  assert.equal(context.conflict_report.blocking[0].code, 'irreversible_action_requested');
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('detectRequestConflicts reports dangling evidence source references', () => {
+  const report = detectRequestConflicts({
+    request: 'summarize context',
+    sources: [{ source_id: 'src_known' }],
+    evidence: [{ evidence_id: 'ev_missing', source_id: 'src_missing' }]
+  });
+
+  assert.ok(report.blocking.some((item) => item.code === 'evidence_without_source'));
+});
+
+test('offline wording is downgraded instead of conflicting with network needs', () => {
+  const report = detectRequestConflicts({
+    request: '要求离线但又要求联网搜索资料',
+    sources: [{ source_id: 'src_known' }],
+    evidence: []
+  });
+
+  assert.equal(report.blocking.some((item) => item.code === 'network_offline_conflict'), false);
+  assert.ok(report.non_blocking.some((item) => item.code === 'offline_requirement_removed'));
+  assert.ok(report.resolutions.some((item) => item.code === 'use_configured_provider_policy'));
+});

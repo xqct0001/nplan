@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 
 import { BUILTIN_MODEL_PROVIDERS } from './model-config.js';
 
-export const PROJECT_CONFIG_PATH = resolve('.nplan/config.toml');
+export const PROJECT_CONFIG_PATH = '.nplan/config.toml';
 
 export function listProviderChoices() {
   return Object.entries(BUILTIN_MODEL_PROVIDERS).map(([id, provider]) => ({
@@ -12,11 +12,18 @@ export function listProviderChoices() {
     base_url: provider.base_url,
     env_key: provider.env_key || '',
     default_model: provider.default_model || 'local-model',
-    wire_api: provider.wire_api
+    wire_api: provider.wire_api,
+    models_url: provider.models_url || '',
+    api_key_url: provider.api_key_url || ''
   }));
 }
 
-export function writeProjectModelConfig({ providerId, model, providerOverrides = {}, configPath = PROJECT_CONFIG_PATH }) {
+export function writeProjectModelConfig({
+  providerId,
+  model,
+  providerOverrides = {},
+  configPath = resolve(PROJECT_CONFIG_PATH)
+}) {
   const provider = {
     ...BUILTIN_MODEL_PROVIDERS[providerId],
     ...providerOverrides
@@ -43,7 +50,11 @@ export function renderProviderList() {
 export function initHint(result) {
   const lines = [`Configured ${result.providerId} (${result.model}) in ${result.configPath}.`];
   if (result.provider.env_key) {
-    lines.push(`Login: set $env:${result.provider.env_key} = "<your-key>" before running.`);
+    if (result.provider.api_key) {
+      lines.push('Login: API key saved in the local project config.');
+    } else {
+      lines.push(`Login: set $env:${result.provider.env_key} = "<your-key>" before running.`);
+    }
   } else {
     lines.push(`Login: make sure the local model service is running at ${result.provider.base_url}.`);
   }
@@ -65,6 +76,8 @@ function renderProjectConfig({ providerId, provider, model }) {
     `timeout_ms = ${Number(provider.timeout_ms || 60000)}`
   ];
   if (provider.env_key) lines.splice(8, 0, `env_key = ${quote(provider.env_key)}`);
+  if (provider.api_key) lines.splice(provider.env_key ? 9 : 8, 0, `api_key = ${quote(provider.api_key)}`);
+  if (provider.models_url) lines.push(`models_url = ${quote(provider.models_url)}`);
   if (provider.response_format === false || provider.response_format) {
     lines.push(
       typeof provider.response_format === 'boolean'
