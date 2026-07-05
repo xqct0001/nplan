@@ -152,6 +152,7 @@ console.log(result.status);
 ## 项目结构
 
 ```text
+AGENTS.md              当前仓库的 Agent 工作规则
 src/
   agent.js              LocalPlanningAgent 门面入口
   cli.js                命令行入口
@@ -170,6 +171,7 @@ src/
   validation.js         TaskSpec 与 TaskPlan 校验器
 
 docs/
+  agent-design-prompt-lessons.md
   agent-module-spec.md
   local-knowledge.md
   model-providers.md

@@ -159,6 +159,7 @@ console.log(result.status);
 ## Project Layout
 
 ```text
+AGENTS.md              Agent operating instructions for this repository
 src/
   agent.js              LocalPlanningAgent facade
   cli.js                command-line interface
@@ -177,6 +178,7 @@ src/
   validation.js         TaskSpec and TaskPlan validators
 
 docs/
+  agent-design-prompt-lessons.md
   agent-module-spec.md
   local-knowledge.md
   model-providers.md
