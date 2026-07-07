@@ -15,7 +15,7 @@ Configuration is merged in this order:
 2. `.nplan/config.toml`
 3. `$env:NPLAN_HOME\.nplan\config.toml` or `~/.nplan/config.toml`
 4. environment variables
-5. CLI `-c key=value` overrides
+5. CLI `--config key=value` overrides
 
 ## Built-In Providers
 
@@ -53,17 +53,17 @@ Any OpenAI-compatible provider can be added under
 
 List the built-ins:
 
-```powershell
-nplan.cmd providers
+```cmd
+nplan providers
 ```
 
 Recommended setup:
 
-```powershell
-nplan.cmd setup
+```cmd
+nplan setup
 ```
 
-`nplan.cmd setup` asks for a provider, API key, and model. For built-in providers it
+`nplan setup` asks for a provider, API key, and model. For built-in providers it
 uses the provider's OpenAI-compatible model list URL when available. For custom
 providers, paste the model list URL or accept the default `<base_url>/models`.
 If fetching models fails, the wizard falls back to the provider default or a
@@ -103,7 +103,7 @@ response_format = "none"
 ## Model Required Behavior
 
 If no model is configured, interactive mode still starts and guides the user to
-run `nplan.cmd setup` from PowerShell. Print mode exits with a model-required
+run `nplan setup`. Print mode exits with a model-required
 error and tells the user to run setup.
 
 If a configured model fails or returns invalid JSON, the analysis fails. The

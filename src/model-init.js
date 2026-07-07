@@ -53,7 +53,7 @@ export function initHint(result) {
     if (result.provider.api_key) {
       lines.push('Login: API key saved in the local project config.');
     } else {
-      lines.push(`Login: set $env:${result.provider.env_key} = "<your-key>" before running.`);
+      lines.push(`Login: in CMD, run set ${result.provider.env_key}=<your-key> before using NPlan.`);
     }
   } else {
     lines.push(`Login: make sure the local model service is running at ${result.provider.base_url}.`);

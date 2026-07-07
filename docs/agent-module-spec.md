@@ -23,8 +23,8 @@ model-list requests to provider endpoints.
 - `src/schemas.js`: field lists, minimal JSON Schema artifacts, constructors.
 - `src/understanding.js`: deterministic `TaskSpec` compiler.
 - `src/validation.js`: `TaskSpec` and `TaskPlan` guardrails.
-- `src/model-config.js`: Codex-style provider config, built-ins, TOML parser,
-  and `-c key=value` overrides.
+- `src/model-config.js`: provider config, built-ins, TOML parser, and
+  `--config key=value` overrides.
 - `src/model-client.js`: OpenAI-compatible `responses` and `chat_completions`
   TaskSpec extraction client.
 - `src/planning.js`: planner input mapping and bounded DAG generation.
@@ -39,7 +39,7 @@ model-list requests to provider endpoints.
   evidence, and prepares a `context_pack` for the model.
 - `src/conflicts.js`: request/context conflict detection, including
   irreversible action checkpoints and evidence-source consistency.
-- `src/cli.js`: Codex-like command-line interaction layer.
+- `src/cli.js`: Claude-like planning command-line interaction layer.
 - `src/index.js`: public exports.
 
 ## Required TaskSpec Checks
@@ -88,23 +88,37 @@ node --check src/provenance.js
 
 ## CLI Interaction
 
-The CLI mirrors a safe subset of Codex's interaction shape:
+The CLI mirrors a safe subset of Claude Code's command-line interaction shape:
 
 - no arguments: start an interactive session
 - quoted prompt: start an interactive session with an initial prompt
 - `-p` / `--print`: print one JSON result and exit
+- `--output-format json|summary|text`: choose print-mode rendering
+- `--input-format text`: accept text from argv or stdin
+- `--continue` / `-c`: continue the latest local planning session
+- `--resume` / `-r [id]`: resume a saved local planning session
 - `setup`: guided provider/API key/model configuration
+- Windows CMD wrappers allow extension-free commands such as `install`,
+  `setup`, `run`, and local/global `nplan`
 - piped stdin with print mode: include stdin as additional prompt context
-- slash commands: `/help`, `/providers`, `/status`, `/plan`, `/json`, `/clear`,
-  `/exit`, `/quit`
+- slash commands: `/help`, `/providers`, `/status`, `/config`, `/settings`,
+  `/model`, `/context`, `/plan`, `/json`, `/compact`, `/clear`, `/reset`,
+  `/new`, `/continue`, `/resume`, `/exit`, `/quit`
 - interactive mode shows a concise planning summary; `/json` shows the full
   structured result
+- local session notes are stored under `.nplan/sessions/` and contain planning
+  prompts, statuses, goals, deliverable names, and task counts only
+- config overrides use `--config key=value`; legacy `-c key=value` remains
+  accepted for compatibility
 
 Unsupported on purpose:
 
 - shell execution via `!`
 - file editing
 - command execution
+- Claude Code tool permission flags such as `--permission-mode` and
+  `--dangerously-skip-permissions`
+- MCP tool configuration
 - remote agent management
 
 Those features conflict with this module's planning-only boundary.
@@ -127,7 +141,7 @@ but it is not used as a no-model runtime fallback for producing plans:
   `modelscope`
 - custom OpenAI-compatible providers through `model_providers.<id>`
 
-Config shape follows Codex-style model provider configuration:
+Config shape follows NPlan's OpenAI-compatible provider TOML configuration:
 
 ```toml
 model = "qwen-plus"
@@ -140,7 +154,7 @@ wire_api = "chat_completions"
 ```
 
 When the model succeeds, `TaskSpec.provenance.model_used` is `true`. If no model
-is configured, interactive mode starts and tells the user to run `nplan.cmd setup`,
+is configured, interactive mode starts and tells the user to run `nplan setup`,
 while print mode exits with a model-required error. If a configured model call
 fails or returns invalid JSON, the analysis fails instead of falling back to
 local rules.

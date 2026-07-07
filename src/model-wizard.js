@@ -39,13 +39,13 @@ export async function runModelSetupWizard({ streams, fetchImpl = globalThis.fetc
     output.write('\nSetup complete.\n');
     output.write(`Configured ${result.providerId} (${result.model}) in ${result.configPath}.\n`);
     if (apiKey && provider.env_key && !providerOverrides.api_key) {
-      output.write(`Run this before using NPlan:\n$env:${provider.env_key} = "<your-key>"\n`);
+      output.write(`Run this before using NPlan in CMD:\nset ${provider.env_key}=<your-key>\n`);
     } else if (provider.env_key && !apiKey) {
-      output.write(`Before using NPlan, set $env:${provider.env_key} = "<your-key>".\n`);
+      output.write(`Before using NPlan in CMD, run: set ${provider.env_key}=<your-key>\n`);
     } else if (!provider.env_key) {
       output.write(`Make sure the local service is running at ${provider.base_url}.\n`);
     }
-    output.write('Try it:\nnplan.cmd -p "Plan a local knowledge base organizer"\n');
+    output.write('Try it:\nnplan -p "Plan a local knowledge base organizer"\n');
     return result;
   } finally {
     ui.close();

@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { parseArgs } from '../src/cli.js';
 import { loadModelConfig } from '../src/model-config.js';
 import { runModelSetupWizard } from '../src/model-wizard.js';
 
@@ -48,6 +49,47 @@ test('print mode accepts piped stdin as additional context', async () => {
   });
 });
 
+test('print mode can render a concise summary output', async () => {
+  await withModelServer(async ({ configPath, env }) => {
+    const result = await runCli(
+      ['--config-path', configPath, '--print', '--output-format', 'summary', 'implement TaskSpec schema'],
+      '',
+      env
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /status: planned/);
+    assert.match(result.stdout, /Full JSON: \/json/);
+    assert.throws(() => JSON.parse(result.stdout));
+  });
+});
+
+test('print mode can continue the latest saved planning session', async () => {
+  await withModelServer(async ({ configPath, env, cwd }) => {
+    const first = await runCli(
+      ['--config-path', configPath, '--continue', '--print', 'plan TaskSpec schema'],
+      '',
+      env,
+      cwd
+    );
+    const second = await runCli(
+      ['--config-path', configPath, '--continue', '--print', 'extend it with validation'],
+      '',
+      env,
+      cwd
+    );
+    const sessionFiles = await readdir(join(cwd, '.nplan', 'sessions'));
+    const session = JSON.parse(await readFile(join(cwd, '.nplan', 'sessions', sessionFiles[0]), 'utf8'));
+
+    assert.equal(first.code, 0);
+    assert.equal(second.code, 0);
+    assert.equal(JSON.parse(second.stdout).status, 'planned');
+    assert.equal(session.turns.length, 2);
+    assert.match(session.turns[0].prompt, /TaskSpec schema/);
+    assert.match(session.turns[1].prompt, /validation/);
+  });
+});
+
 test('print mode requires configured model', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'nplan-no-model-'));
   const result = await runCli(
@@ -69,7 +111,7 @@ test('print mode requires configured model', async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-test('help shows Codex-like command shapes and slash commands', async () => {
+test('help shows Claude-like command shapes and slash commands', async () => {
   const result = await runCli(['--help']);
 
   assert.equal(result.code, 0);
@@ -77,19 +119,37 @@ test('help shows Codex-like command shapes and slash commands', async () => {
   assert.match(result.stdout, /setup/);
   assert.doesNotMatch(result.stdout, /^\s*init\s/m);
   assert.match(result.stdout, /-p, --print/);
+  assert.match(result.stdout, /--output-format/);
+  assert.match(result.stdout, /-c, --continue/);
+  assert.match(result.stdout, /-r, --resume/);
   assert.doesNotMatch(result.stdout, /--no-model/);
   assert.doesNotMatch(result.stdout, /--wizard/);
   assert.doesNotMatch(result.stdout, /\/init/);
   assert.match(result.stdout, /\/help/);
+  assert.match(result.stdout, /\/config/);
+  assert.match(result.stdout, /\/model/);
+  assert.match(result.stdout, /\/context/);
+  assert.match(result.stdout, /\/compact/);
   assert.match(result.stdout, /\/plan/);
   assert.match(result.stdout, /\/json/);
+});
+
+test('argument parser supports Claude Code session flags and legacy config override', () => {
+  const continued = parseArgs(['-c', 'plan the interface']);
+  assert.equal(continued.continueSession, true);
+  assert.equal(continued.prompt, 'plan the interface');
+
+  const configured = parseArgs(['-c', 'model=qwen-plus', '--config', 'model_provider=dashscope']);
+  assert.equal(configured.continueSession, false);
+  assert.equal(configured.configOverrides.model, 'qwen-plus');
+  assert.equal(configured.configOverrides.model_provider, 'dashscope');
 });
 
 test('guided setup has one public command', async () => {
   const result = await runCli(['init', '--wizard']);
 
   assert.equal(result.code, 1);
-  assert.match(result.stderr, /use "nplan\.cmd setup" for guided setup/);
+  assert.match(result.stderr, /use "nplan setup" for guided setup/);
   assert.equal(result.stdout, '');
 });
 
@@ -98,7 +158,7 @@ test('init without explicit config points to setup and does not write config', a
   const result = await runCli(['init'], '', { HOME: dir, USERPROFILE: dir, NPLAN_HOME: '' }, dir);
 
   assert.equal(result.code, 1);
-  assert.match(result.stderr, /use "nplan\.cmd setup" for guided setup/);
+  assert.match(result.stderr, /use "nplan setup" for guided setup/);
   assert.equal(result.stdout, '');
   await assert.rejects(readFile(join(dir, '.nplan', 'config.toml'), 'utf8'));
 
@@ -229,7 +289,8 @@ test('setup wizard falls back when model fetch fails and does not save key by de
 
     assert.equal(result.code, 0);
     assert.match(result.stdout, /Could not fetch models/);
-    assert.match(result.stdout, /Run this before using NPlan:/);
+    assert.match(result.stdout, /Run this before using NPlan in CMD:/);
+    assert.match(result.stdout, /set FALLBACK_API_KEY=<your-key>/);
     assert.doesNotMatch(result.stdout, /secret/);
     assert.match(config, /model = "fallback-model"/);
     assert.doesNotMatch(config, /^api_?key\s*=/im);
@@ -253,7 +314,7 @@ test('setup wizard can configure a built-in provider without fetching models', a
 
     assert.equal(result.code, 0);
     assert.match(result.stdout, /NPlan setup/);
-    assert.match(result.stdout, /Before using NPlan, set \$env:DEEPSEEK_API_KEY/);
+    assert.match(result.stdout, /Before using NPlan in CMD, run: set DEEPSEEK_API_KEY=<your-key>/);
     assert.match(config, /model = "deepseek-v4-flash"/);
     assert.match(config, /model_provider = "deepseek"/);
     assert.match(config, /models_url = "https:\/\/api\.deepseek\.com\/models"/);
@@ -316,10 +377,11 @@ test('setup result can be loaded as the project model config', async () => {
   }
 });
 
-test('interactive session supports status, plan summary, JSON view, unsupported shell, and exit commands', async () => {
-  await withModelServer(async ({ configPath, env }) => {
+test('interactive session supports Claude-like session commands and planning boundaries', async () => {
+  await withModelServer(async ({ configPath, env, cwd }) => {
     const child = spawn(NODE, [CLI, '--config-path', configPath], {
       stdio: ['pipe', 'pipe', 'pipe'],
+      cwd,
       env: { ...process.env, ...env }
     });
     let stdout = '';
@@ -332,10 +394,17 @@ test('interactive session supports status, plan summary, JSON view, unsupported 
     });
 
     child.stdin.write('/status\n');
+    child.stdin.write('/config\n');
+    child.stdin.write('/model alternate-model\n');
+    child.stdin.write('/model\n');
     child.stdin.write('/plan implement TaskSpec schema and DAG verifier\n');
+    child.stdin.write('/context\n');
+    child.stdin.write('/compact keep provider notes\n');
     child.stdin.write('/json\n');
     child.stdin.write('!echo unsafe\n');
     child.stdin.write('/init ollama qwen2.5\n');
+    child.stdin.write('/permissions\n');
+    child.stdin.write('/reset\n');
     child.stdin.write('/unknown\n');
     child.stdin.write('/exit\n');
     child.stdin.end();
@@ -345,12 +414,18 @@ test('interactive session supports status, plan summary, JSON view, unsupported 
     assert.equal(code, 0);
     assert.equal(stderr, '');
     assert.match(stdout, /NPlan/);
+    assert.match(stdout, /session: /);
     assert.match(stdout, /model: localtest\/semantic-test-model/);
+    assert.match(stdout, /model: localtest\/alternate-model/);
     assert.match(stdout, /status: planned/);
+    assert.match(stdout, /context: sources=/);
+    assert.match(stdout, /compacted session/);
     assert.match(stdout, /Full JSON: \/json/);
     assert.match(stdout, /"status": "planned"/);
     assert.match(stdout, /Shell execution is not available in NPlan/);
-    assert.match(stdout, /Model setup is available as nplan\.cmd setup/);
+    assert.match(stdout, /Model setup is available as nplan setup/);
+    assert.match(stdout, /No tool permissions are available/);
+    assert.match(stdout, /cleared\. New session:/);
     assert.match(stdout, /Unknown command\. Use \/help for commands\./);
     assert.match(stdout, /bye/);
   });
@@ -373,7 +448,7 @@ test('interactive session starts before model setup and guides init', async () =
   assert.equal(result.code, 0);
   assert.match(result.stdout, /NPlan/);
   assert.match(result.stdout, /model: not configured/);
-  assert.match(result.stdout, /Run nplan\.cmd setup/);
+  assert.match(result.stdout, /Run nplan setup/);
 
   await rm(dir, { recursive: true, force: true });
 });
@@ -497,7 +572,7 @@ async function withModelServer(fn, draft = defaultTaskSpecDraft()) {
   );
 
   try {
-    return await fn({ configPath, env: { FAKE_MODEL_KEY: 'secret' }, seen });
+    return await fn({ configPath, env: { FAKE_MODEL_KEY: 'secret' }, seen, cwd: dir });
   } finally {
     server.close();
     await rm(dir, { recursive: true, force: true });

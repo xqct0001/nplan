@@ -24,22 +24,32 @@ bounded plan that another executor can review or run later.
 
 ## Quick Start
 
-Use this PowerShell flow:
+Use this Windows CMD flow:
 
-```powershell
-npm.cmd link
-nplan.cmd setup
-nplan.cmd -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
+```cmd
+cd /d C:\Users\qiyue\Desktop\porgram\N_online_agent
+install
+nplan setup
+nplan -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
 ```
 
-`nplan.cmd setup` lets you choose a provider, paste an API key, fetch model
+`install` links the `nplan` command globally. `nplan setup` lets you choose a
+provider, paste an API key, fetch model
 choices from the provider's OpenAI-compatible model list endpoint when available,
 and write `.nplan/config.toml`.
 
+You can also run the local launcher directly without installing globally:
+
+```cmd
+nplan setup
+nplan providers
+```
+
 Start an interactive session:
 
-```powershell
-nplan.cmd
+```cmd
+nplan
+nplan "Plan the release checklist"
 ```
 
 ## CLI
@@ -53,12 +63,22 @@ Commands:
 
 Options:
   -p, --print       Print one JSON result and exit
+  --output-format <json|summary|text>
+                    Select print-mode output format
+  --input-format text
+                    Accept text from argv or stdin
+  -c, --continue    Continue the latest local planning session
+  -r, --resume [id] Resume a saved planning session
   --model <name>    Use a model for semantic task understanding
   --provider <id>   Select a model provider
   --models-url <u>  Model list URL for guided/custom provider setup
   --config-path <p> Load model config TOML
-  -c key=value      Override config with dotted keys
+  --config key=value
+                    Override config with dotted keys
 ```
+
+Legacy `-c key=value` config overrides still work, but `-c` by itself now
+matches Claude Code and means `--continue`.
 
 Interactive commands:
 
@@ -66,26 +86,39 @@ Interactive commands:
 /help
 /providers
 /status
+/config, /settings
+/model [name]
+/context
 /plan <prompt>
 /json
-/clear
+/compact [note]
+/clear, /reset, /new
+/continue
+/resume [id]
 /exit, /quit
 ```
 
-Shell execution through `!` is intentionally unsupported.
+The CLI follows Claude Code's command-line interaction shape where that fits a
+planning-only module: no arguments opens a session, a quoted prompt seeds a
+session, `-p` prints one result, stdin can be piped into print mode, and
+`--continue` / `--resume` reuse local session notes. Session notes are stored
+under `.nplan/sessions/`, which is ignored by git.
+
+Shell execution through `!`, file editing, tool permission modes, MCP tool
+configuration, and remote-agent orchestration are intentionally unsupported.
 
 ## Model Providers
 
 List built-ins:
 
-```powershell
-nplan.cmd providers
+```cmd
+nplan providers
 ```
 
 Configure a provider:
 
-```powershell
-nplan.cmd setup
+```cmd
+nplan setup
 ```
 
 Supported provider families include:
