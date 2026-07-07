@@ -78,6 +78,7 @@ variables remain preferable for shared machines.
 ```toml
 model = "qwen-plus"
 model_provider = "dashscope"
+model_max_output_tokens = 2000
 
 [model_providers.dashscope]
 name = "DashScope"
@@ -87,6 +88,9 @@ wire_api = "chat_completions"
 request_max_retries = 2
 timeout_ms = 60000
 ```
+
+`model_max_output_tokens` is sent as `max_output_tokens` for Responses API
+providers and `max_tokens` for chat-completions providers.
 
 Compatibility flag for providers that should not receive OpenAI JSON-mode
 parameters:

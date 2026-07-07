@@ -120,6 +120,37 @@ test('curateContext returns evidence pack and blocks irreversible requests', asy
   await rm(dir, { recursive: true, force: true });
 });
 
+test('curateContext keeps core source files for project-wide assessment requests', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-core-context-'));
+  await mkdir(join(dir, 'docs'), { recursive: true });
+  await mkdir(join(dir, 'DOC', 'knowledge-catalog'), { recursive: true });
+  await mkdir(join(dir, 'src'), { recursive: true });
+
+  for (const name of ['planning.js', 'validation.js', 'schemas.js', 'understanding.js']) {
+    await writeFile(join(dir, 'src', name), `export const ${name.replace('.js', '')} = true;\n`, 'utf8');
+  }
+  for (let index = 0; index < 40; index += 1) {
+    await writeFile(join(dir, 'docs', `note-${index}.md`), `# Note ${index}\nProject note.\n`, 'utf8');
+  }
+  await writeFile(
+    join(dir, 'DOC', 'knowledge-catalog', 'README.md'),
+    '# External reference\nIgnored by default context discovery.\n',
+    'utf8'
+  );
+
+  const context = curateContext('整体评估项目不足', { root: dir });
+  const selected = context.source_map.map((source) => source.relative_path);
+
+  assert.ok(selected.includes('src/planning.js'));
+  assert.ok(selected.includes('src/validation.js'));
+  assert.ok(selected.includes('src/schemas.js'));
+  assert.ok(selected.includes('src/understanding.js'));
+  assert.equal(selected.some((path) => path.includes('knowledge-catalog')), false);
+  assert.ok(selected.length <= 24);
+
+  await rm(dir, { recursive: true, force: true });
+});
+
 test('detectRequestConflicts reports dangling evidence source references', () => {
   const report = detectRequestConflicts({
     request: 'summarize context',

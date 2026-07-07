@@ -78,7 +78,10 @@ Recommended:
 3. Files with a non-empty `type` become `knowledge` sources.
 4. `curateContext()` ranks sources using path, kind, title, description, and
    tags.
-5. `makeEvidenceItem()` includes concept metadata plus a body excerpt in the
+5. Project-wide, validation, planning, schema, and understanding requests boost
+   the core source files listed in `src/context-policy.js` before the source
+   budget is applied.
+6. `makeEvidenceItem()` includes concept metadata plus a body excerpt in the
    evidence text.
 
 The result is still a local, read-only `context_pack`. It does not execute

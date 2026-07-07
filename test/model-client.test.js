@@ -31,6 +31,7 @@ test('calls chat-completions providers with auth, query params, and JSON prompt'
     context: { files: ['README.md'] },
     config: {
       model: 'qwen-plus',
+      model_max_output_tokens: 777,
       model_provider: 'dashscope',
       model_providers: {
         dashscope: {
@@ -50,7 +51,9 @@ test('calls chat-completions providers with auth, query params, and JSON prompt'
   assert.equal(requests[0].url, 'https://example.test/v1/chat/completions?foo=bar');
   assert.equal(requests[0].options.headers.Authorization, 'Bearer secret');
   assert.equal(requests[0].options.headers['X-App'], 'nplan');
-  assert.equal(JSON.parse(requests[0].options.body).model, 'qwen-plus');
+  const body = JSON.parse(requests[0].options.body);
+  assert.equal(body.model, 'qwen-plus');
+  assert.equal(body.max_tokens, 777);
   assert.equal(result.deliverables[1].format, 'markdown');
 });
 

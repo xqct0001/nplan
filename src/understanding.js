@@ -1,4 +1,4 @@
-import { makeDeliverable } from './schemas.js';
+import { OUTPUT_FORMATS, RISK_LEVELS, makeDeliverable } from './schemas.js';
 
 const TASK_TYPES = {
   coding: ['implement', 'code', 'module', 'bug', 'test', 'schema', 'verifier', 'dag'],
@@ -87,9 +87,23 @@ export function composeTaskSpecFromModel(surfaceRequest, modelDraft, context = {
   const text = stripPromptArtifacts(surfaceRequest);
   const local = compileTaskSpec(text, context);
   const deliverables = normalizeDeliverables(modelDraft.deliverables);
-  const blocking = normalizeMissing(modelDraft.missing_information).blocking;
+  const modelMissing = normalizeMissing(modelDraft.missing_information);
+  const localBlocking = localBlockingThatModelCannotResolve(text, local.missing_information.blocking, deliverables);
+  const blocking = uniqueStrings([...localBlocking, ...modelMissing.blocking]);
+  const nonBlocking = uniqueStrings([
+    ...local.missing_information.non_blocking,
+    ...modelMissing.non_blocking
+  ]);
   const successCriteria = arrayOfStrings(modelDraft.success_criteria);
-  const score = blocking.length ? 0.55 : 0.9;
+  const localScore = Number(local.planning_readiness.score);
+  const modelScore = modelMissing.blocking.length ? 0.55 : 0.9;
+  const localReadinessCap = localBlocking.length || isVague(text)
+    ? Number.isFinite(localScore)
+      ? localScore
+      : 0.55
+    : 1;
+  const score = Number(Math.min(localReadinessCap, modelScore).toFixed(2));
+  const decision = blocking.length || score < 0.8 ? 'clarify_then_plan' : 'ready';
   return {
     ...local,
     inferred_goal: stringOr(modelDraft.inferred_goal, local.inferred_goal),
@@ -106,16 +120,19 @@ export function composeTaskSpecFromModel(surfaceRequest, modelDraft, context = {
     evidence_map: local.evidence_map,
     context_report: local.context_report,
     conflict_report: local.conflict_report,
-    missing_information: normalizeMissing(modelDraft.missing_information),
-    assumptions: arrayOfStrings(modelDraft.assumptions),
-    ambiguities: arrayOfStrings(modelDraft.ambiguities),
+    missing_information: { blocking, non_blocking: nonBlocking },
+    assumptions: uniqueStrings([...local.assumptions, ...arrayOfStrings(modelDraft.assumptions)]),
+    ambiguities: uniqueStrings([...local.ambiguities, ...arrayOfStrings(modelDraft.ambiguities)]),
     success_criteria: successCriteria.length
       ? successCriteria
       : deliverables.map((item) => `${item.name} is produced and validated`),
     clarification: {
-      requires_clarification: Boolean(blocking.length),
-      questions: blocking.map((item) => `Please clarify: ${item}`),
-      reason: blocking.length ? 'blocking information is missing' : 'ready to plan'
+      requires_clarification: Boolean(blocking.length) || score < 0.6,
+      questions: clarificationQuestionsForMergedBlocking(
+        blocking,
+        blocking.length ? local.clarification.questions : []
+      ),
+      reason: blocking.length || score < 0.6 ? 'blocking information is missing' : 'ready to plan'
     },
     checkpoint_policy: normalizeCheckpointPolicy(modelDraft.checkpoint_policy, local.checkpoint_policy),
     quality_bar: arrayOfStrings(modelDraft.quality_bar).length
@@ -123,7 +140,7 @@ export function composeTaskSpecFromModel(surfaceRequest, modelDraft, context = {
       : local.quality_bar,
     planning_readiness: {
       score,
-      decision: blocking.length ? 'clarify_then_plan' : 'ready'
+      decision
     },
     risk_level: normalizeRiskLevel(modelDraft.risk_level, local.risk_level),
     provenance: {
@@ -364,7 +381,7 @@ function filesUsed(context) {
 }
 
 function normalizedOutputFormat(value, deliverables, fallback) {
-  const allowed = new Set(['json', 'markdown', 'yaml', 'text', 'diagram', 'code', 'mixed', 'unknown']);
+  const allowed = new Set(OUTPUT_FORMATS);
   if (typeof value === 'string' && allowed.has(value)) return value;
   if (deliverables.length) return outputFormatFor(deliverables);
   return fallback;
@@ -383,7 +400,7 @@ function normalizeCheckpointPolicy(value, fallback) {
 }
 
 function normalizeRiskLevel(value, fallback) {
-  return ['low', 'medium', 'high', 'unknown'].includes(value) ? value : fallback;
+  return RISK_LEVELS.includes(value) ? value : fallback;
 }
 
 function normalizeConstraints(base, value) {
@@ -415,4 +432,19 @@ function arrayOfStrings(value) {
 
 function stringOr(value, fallback) {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function clarificationQuestionsForMergedBlocking(blocking, localQuestions = []) {
+  const questions = blocking.map((item) => `Please clarify: ${item}`);
+  return uniqueStrings([...localQuestions, ...questions]);
+}
+
+function localBlockingThatModelCannotResolve(text, blocking, deliverables) {
+  if (isVague(text)) return blocking;
+  if (!deliverables.length) return blocking;
+  return blocking.filter((item) => !['final deliverable', 'required deliverables'].includes(item));
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values.map(String).map((item) => item.trim()).filter(Boolean))];
 }

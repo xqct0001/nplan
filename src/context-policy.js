@@ -14,6 +14,12 @@ export const DEFAULT_CONTEXT_POLICY = {
   scan_dirs: ['docs', 'DOC', 'src', 'test'],
   ignore_dirs: ['.git', 'node_modules', '.nplan', '.codegraph', 'knowledge-catalog'],
   parser_version: 'local-text-v1',
+  core_source_paths: [
+    'src/planning.js',
+    'src/validation.js',
+    'src/schemas.js',
+    'src/understanding.js'
+  ],
   source_priority: {
     instruction: 100,
     readme: 90,

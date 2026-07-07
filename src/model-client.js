@@ -131,6 +131,7 @@ function requestBody({ config, provider, prompt }) {
       { role: 'user', content: prompt.user }
     ],
     temperature: config.model_temperature ?? 0.1,
+    max_tokens: config.model_max_output_tokens ?? 2000,
     ...chatResponseFormat(provider)
   };
 }

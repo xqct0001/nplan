@@ -50,6 +50,35 @@ test('blocking missing information cannot be marked ready', () => {
   assert.ok(report.conflicts.includes('clarification_without_questions'));
 });
 
+test('taskspec validator rejects empty and wrong-typed content', () => {
+  const spec = compileTaskSpec('implement TaskSpec schema', {
+    audience: 'maintainers',
+    target_object: 'planning module'
+  });
+  Object.assign(spec, {
+    audience: ' ',
+    target_object: '',
+    deliverables: [{}],
+    constraints: null,
+    known_inputs: 'README.md',
+    assumptions: {},
+    ambiguities: 'unclear'
+  });
+
+  const report = validateTaskSpec(spec);
+
+  assert.equal(report.valid, false);
+  assert.equal(report.ready_for_planning, false);
+  assert.ok(report.conflicts.includes('empty_audience'));
+  assert.ok(report.conflicts.includes('empty_target_object'));
+  assert.ok(report.conflicts.includes('invalid_deliverables'));
+  assert.ok(report.conflicts.includes('no_deliverables'));
+  assert.ok(report.conflicts.includes('invalid_constraints'));
+  assert.ok(report.conflicts.includes('invalid_known_inputs'));
+  assert.ok(report.conflicts.includes('invalid_assumptions'));
+  assert.ok(report.conflicts.includes('invalid_ambiguities'));
+});
+
 test('compiler marks vague request for clarification', () => {
   const spec = compileTaskSpec('help', { files: [] });
   const report = validateTaskSpec(spec);
@@ -112,6 +141,33 @@ test('model draft constraints remove deprecated offline preference', () => {
   assert.equal(spec.constraints.forbidden_tools.includes('network_access'), false);
 });
 
+test('model draft cannot hide local blocking information for vague requests', () => {
+  const spec = composeTaskSpecFromModel('help', {
+    inferred_goal: 'Create a plan',
+    task_type: 'planning',
+    audience: 'requester',
+    target_object: 'unspecified request',
+    deliverables: [{ name: 'Plan', format: 'markdown', required: true }],
+    missing_information: { blocking: [], non_blocking: [] },
+    assumptions: ['The user wants general help'],
+    ambiguities: [],
+    success_criteria: ['Plan is drafted'],
+    checkpoint_policy: {
+      stop_on: ['blocking_missing_information', 'validation_failure'],
+      requires_user_confirmation_for: []
+    },
+    quality_bar: ['clarifying questions are asked when needed'],
+    risk_level: 'medium'
+  });
+  const report = validateTaskSpec(spec);
+
+  assert.ok(spec.missing_information.blocking.includes('final deliverable'));
+  assert.ok(spec.missing_information.blocking.includes('required deliverables'));
+  assert.equal(spec.planning_readiness.decision, 'clarify_then_plan');
+  assert.equal(spec.clarification.requires_clarification, true);
+  assert.equal(report.ready_for_planning, false);
+});
+
 test('plan validator reports cycles, missing refs, missing io, and coverage gaps', () => {
   const plan = {
     version: '1.0',
@@ -159,6 +215,24 @@ test('plan validator reports cycles, missing refs, missing io, and coverage gaps
   assert.ok(report.tasks_without_acceptance.includes('T2'));
   assert.ok(report.tasks_without_io.includes('T2'));
   assert.ok(report.coverage_gaps.includes('TaskPlan DAG'));
+});
+
+test('plan validator rejects non-DAG style, empty tasks, empty acceptance, and invalid replans', () => {
+  const report = validateTaskPlan({
+    version: '1.0',
+    plan_style: 'tree',
+    global_goal: 'validate external plan',
+    global_acceptance: [],
+    tasks: [],
+    replan_policy: { trigger_on: ['anything'], max_replans: 'many' }
+  });
+
+  assert.equal(report.valid, false);
+  assert.ok(report.plan_errors.includes('invalid_plan_style'));
+  assert.ok(report.plan_errors.includes('no_tasks'));
+  assert.ok(report.plan_errors.includes('no_global_acceptance'));
+  assert.ok(report.policy_errors.includes('invalid_replan_trigger'));
+  assert.ok(report.policy_errors.includes('invalid_max_replans'));
 });
 
 test('plan validator enforces task count limit and reports invalid policy', () => {
@@ -214,6 +288,30 @@ test('generated plans retain planner policy for validation', () => {
   assert.ok(plan.tasks.length > 0);
   assert.deepEqual(report.policy_errors, ['invalid_max_tasks']);
   assert.equal(report.valid, false);
+});
+
+test('generated plans create specific bounded tasks for general deliverables', () => {
+  const plan = planFromTaskSpec({
+    taskspec: {
+      inferred_goal: 'plan a launch decision package',
+      deliverables: [
+        { name: 'Market analysis', format: 'markdown', required: true },
+        { name: 'Launch checklist', format: 'markdown', required: true },
+        { name: 'Risk register', format: 'markdown', required: true }
+      ]
+    },
+    planner_policy: { max_tasks: 12 }
+  });
+  const report = validateTaskPlan(plan);
+  const titles = plan.tasks.map((task) => task.title);
+
+  assert.ok(plan.tasks.length >= 3);
+  assert.equal(titles.includes('Cover remaining deliverables'), false);
+  assert.ok(titles.includes('Define Market analysis'));
+  assert.ok(titles.includes('Define Launch checklist'));
+  assert.ok(titles.includes('Define Risk register'));
+  assert.deepEqual(report.coverage_gaps, []);
+  assert.equal(report.valid, true);
 });
 
 test('local planning agent requires a configured model', () => {

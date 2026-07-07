@@ -86,23 +86,49 @@ function tasksForDeliverables(required, policy) {
 
   const covered = new Set(tasks.flatMap((task) => task.outputs));
   const leftovers = required.filter((name) => !covered.has(name));
-  if (leftovers.length && tasks.length < maxTasks) {
-    const dependencies = tasks.length ? [tasks[tasks.length - 1].id] : [];
-    tasks.push(
-      makeTask(
-        `T${tasks.length + 1}`,
-        'Cover remaining deliverables',
-        'Ensure every required deliverable appears in the DAG',
-        ['TaskSpec'],
-        leftovers,
-        dependencies,
-        leftovers.map((output) => `${output} is covered`),
-        { parallel_group: `G${tasks.length + 1}` }
-      )
-    );
-  }
+  appendDeliverableTasks(tasks, leftovers, maxTasks);
 
   return tasks.slice(0, maxTasks);
+}
+
+function appendDeliverableTasks(tasks, deliverables, maxTasks) {
+  const availableSlots = Math.max(0, maxTasks - tasks.length);
+  if (!deliverables.length || !availableSlots) return;
+
+  const dependencyAnchor = tasks.length ? [tasks[tasks.length - 1].id] : [];
+  const chunks = chunkDeliverables(deliverables, availableSlots);
+  chunks.forEach((chunk) => {
+    const id = `T${tasks.length + 1}`;
+    const label = chunk.length === 1 ? chunk[0] : chunk.join(', ');
+    tasks.push(
+      makeTask(
+        id,
+        chunk.length === 1 ? `Define ${chunk[0]}` : `Define deliverables: ${label}`,
+        `Specify scope, assumptions, review steps, and acceptance checks for ${label}`,
+        dependencyAnchor.length ? ['validated planning artifacts', 'context_digest'] : ['TaskSpec', 'context_digest'],
+        chunk,
+        dependencyAnchor,
+        chunk.flatMap((output) => [
+          `${output} has explicit scope and required sections`,
+          `${output} has reviewable acceptance checks`
+        ]),
+        {
+          parallel_group: `G${tasks.length + 1}`,
+          complexity: chunk.length > 1 ? 'high' : 'medium',
+          risk: 'medium'
+        }
+      )
+    );
+  });
+}
+
+function chunkDeliverables(deliverables, slots) {
+  if (deliverables.length <= slots) return deliverables.map((deliverable) => [deliverable]);
+  const chunks = Array.from({ length: slots }, () => []);
+  deliverables.forEach((deliverable, index) => {
+    chunks[index % slots].push(deliverable);
+  });
+  return chunks.filter((chunk) => chunk.length);
 }
 
 function safeMaxTasks(policy) {
