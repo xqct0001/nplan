@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -59,7 +59,7 @@ test('print mode can render a concise summary output', async () => {
 
     assert.equal(result.code, 0);
     assert.match(result.stdout, /status: planned/);
-    assert.match(result.stdout, /Full JSON: \/json/);
+    assert.doesNotMatch(result.stdout, /Full JSON: \/json/);
     assert.throws(() => JSON.parse(result.stdout));
   });
 });
@@ -449,6 +449,32 @@ test('interactive session starts before model setup and guides init', async () =
   assert.match(result.stdout, /NPlan/);
   assert.match(result.stdout, /model: not configured/);
   assert.match(result.stdout, /Run nplan setup/);
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('interactive resume ignores corrupt session files without crashing', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-corrupt-session-'));
+  const sessionDir = join(dir, '.nplan', 'sessions');
+  await mkdir(sessionDir, { recursive: true });
+  await writeFile(join(sessionDir, '20260707120000-badbad12.json'), '{broken', 'utf8');
+
+  const result = await runCli(
+    [],
+    '/resume 20260707120000-badbad12\n/exit\n',
+    {
+      HOME: dir,
+      USERPROFILE: dir,
+      NPLAN_HOME: '',
+      NPLAN_MODEL: ''
+    },
+    dir
+  );
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /No saved session found\./);
+  assert.match(result.stdout, /bye/);
+  assert.equal(result.stderr, '');
 
   await rm(dir, { recursive: true, force: true });
 });

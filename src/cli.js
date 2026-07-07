@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import readline from 'node:readline';
 import { stdin as input, stdout as output } from 'node:process';
 import { join, resolve } from 'node:path';
@@ -357,11 +357,6 @@ async function handleInteractiveLine(line, { state, streams }) {
     );
     return false;
   }
-  if (line === '/clear') {
-    state.lastResult = null;
-    streams.output.write('cleared\n');
-    return false;
-  }
   if (line.startsWith('!')) {
     streams.output.write('Shell execution is not available in NPlan; describe the task instead.\n');
     return false;
@@ -406,11 +401,13 @@ async function analyzeAndRender(prompt, { state, streams }) {
 }
 
 function renderPrintResult(result, outputFormat = 'json') {
-  if (outputFormat === 'summary' || outputFormat === 'text') return renderInteractiveResult(result);
+  if (outputFormat === 'summary' || outputFormat === 'text') {
+    return renderInteractiveResult(result, { includeJsonHint: false });
+  }
   return JSON.stringify(result, null, 2);
 }
 
-export function renderInteractiveResult(result) {
+export function renderInteractiveResult(result, { includeJsonHint = true } = {}) {
   const lines = [`status: ${result.status}`];
   if (result.taskspec?.inferred_goal) lines.push(`goal: ${result.taskspec.inferred_goal}`);
 
@@ -421,7 +418,7 @@ export function renderInteractiveResult(result) {
       for (const question of questions) lines.push(`- ${question}`);
     }
     lines.push('', 'No task plan was produced yet.');
-    lines.push('Full JSON: /json');
+    if (includeJsonHint) lines.push('Full JSON: /json');
     return lines.join('\n');
   }
 
@@ -446,7 +443,7 @@ export function renderInteractiveResult(result) {
     for (const issue of issues) lines.push(`- ${issue}`);
   }
 
-  lines.push('', 'Full JSON: /json');
+  if (includeJsonHint) lines.push('', 'Full JSON: /json');
   return lines.join('\n');
 }
 
@@ -649,9 +646,13 @@ function sessionPath(id) {
 
 function loadSessionById(id) {
   if (!id || id === 'latest') return loadLatestSession();
-  const file = sessionPath(id);
-  if (!existsSync(file)) return null;
-  return normalizeSession(JSON.parse(readFileSync(file, 'utf8')), id);
+  try {
+    const file = sessionPath(id);
+    if (!existsSync(file)) return null;
+    return readSessionFile(file, id);
+  } catch {
+    return null;
+  }
 }
 
 function loadLatestSession() {
@@ -662,7 +663,7 @@ function loadLatestSession() {
     if (!name.endsWith('.json')) continue;
     const file = join(dir, name);
     try {
-      const session = normalizeSession(JSON.parse(readFileSync(file, 'utf8')), name.slice(0, -5));
+      const session = readSessionFile(file, name.slice(0, -5));
       const mtime = statSync(file).mtimeMs;
       if (!latest || Date.parse(session.updated_at || '') > Date.parse(latest.session.updated_at || '') || mtime > latest.mtime) {
         latest = { session, mtime };
@@ -672,6 +673,10 @@ function loadLatestSession() {
     }
   }
   return latest?.session || null;
+}
+
+function readSessionFile(file, fallbackId) {
+  return normalizeSession(JSON.parse(readFileSync(file, 'utf8')), fallbackId);
 }
 
 function normalizeSession(value, fallbackId) {
@@ -728,7 +733,10 @@ function recordSessionTurn(session, prompt, result) {
 
 function saveSession(session) {
   mkdirSync(sessionDir(), { recursive: true });
-  writeFileSync(sessionPath(session.id), `${JSON.stringify(session, null, 2)}\n`, 'utf8');
+  const file = sessionPath(session.id);
+  const tempFile = `${file}.${process.pid}.${randomUUID().slice(0, 8)}.tmp`;
+  writeFileSync(tempFile, `${JSON.stringify(session, null, 2)}\n`, 'utf8');
+  renameSync(tempFile, file);
 }
 
 function compactSession(session, instructions = '') {

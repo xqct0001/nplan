@@ -7,6 +7,7 @@ import {
   TASKSPEC_SCHEMA,
   composeTaskSpecFromModel,
   compileTaskSpec,
+  planFromTaskSpec,
   validateTaskPlan,
   validateTaskSpec
 } from '../src/index.js';
@@ -197,6 +198,22 @@ test('plan validator enforces task count limit and reports invalid policy', () =
   assert.equal(tooMany.valid, false);
   assert.deepEqual(invalidPolicy.policy_errors, ['invalid_max_tasks']);
   assert.equal(invalidPolicy.valid, false);
+});
+
+test('generated plans retain planner policy for validation', () => {
+  const plan = planFromTaskSpec({
+    taskspec: {
+      inferred_goal: 'plan a custom artifact',
+      deliverables: [{ name: 'Custom planning artifact', format: 'markdown', required: true }]
+    },
+    planner_policy: { max_tasks: 'many' }
+  });
+  const report = validateTaskPlan(plan);
+
+  assert.equal(plan.planner_policy.max_tasks, 'many');
+  assert.ok(plan.tasks.length > 0);
+  assert.deepEqual(report.policy_errors, ['invalid_max_tasks']);
+  assert.equal(report.valid, false);
 });
 
 test('local planning agent requires a configured model', () => {

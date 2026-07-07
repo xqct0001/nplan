@@ -34,6 +34,7 @@ export function planFromTaskSpec(plannerInput) {
       'each task has inputs, outputs, and acceptance checks'
     ],
     required_deliverables: required,
+    planner_policy: policy,
     tasks,
     replan_policy: {
       trigger_on: ['schema_invalid', 'cyclic_dependency', 'blocking_info_found', 'task_too_coarse'],
@@ -43,7 +44,7 @@ export function planFromTaskSpec(plannerInput) {
 }
 
 function tasksForDeliverables(required, policy) {
-  const maxTasks = Number(policy.max_tasks || DEFAULT_PLANNER_POLICY.max_tasks);
+  const maxTasks = safeMaxTasks(policy);
   if (!required.length) {
     return [
       makeTask(
@@ -102,4 +103,11 @@ function tasksForDeliverables(required, policy) {
   }
 
   return tasks.slice(0, maxTasks);
+}
+
+function safeMaxTasks(policy) {
+  const configured = Number(policy?.max_tasks);
+  return Number.isInteger(configured) && configured >= 1
+    ? configured
+    : DEFAULT_PLANNER_POLICY.max_tasks;
 }
