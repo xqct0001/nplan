@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import readline from 'node:readline';
 import { stdin as input, stdout as output } from 'node:process';
 import { join, resolve } from 'node:path';
@@ -17,12 +17,18 @@ const BIN_NAME = 'nplan';
 const SETUP_COMMAND = 'nplan setup';
 const SESSION_STORE_VERSION = '1.0';
 const OUTPUT_FORMATS = new Set(['json', 'summary', 'text']);
+const PACKAGE_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+const COMMANDS = new Set(['doctor', 'exec', 'init', 'providers', 'resume', 'setup']);
 
 const HELP = `Usage: ${BIN_NAME} [options] [prompt]
 
 Commands:
+  exec [options] [prompt]
+                    Print one planning result and exit
   setup             Guided provider/API key/model setup wizard
   providers         List built-in model providers
+  resume [id]       Resume a saved planning session
+  doctor            Check local CLI configuration
 
 Options:
   -p, --print       Print one JSON result and exit
@@ -38,6 +44,7 @@ Options:
   --config-path <p> Load model config TOML
   --config key=value
                     Override config, supports dotted keys
+  -V, --version     Show version
   -h, --help        Show this help
 
 Interactive commands:
@@ -73,6 +80,14 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
   }
   if (parsed.help) {
     streams.output.write(`${HELP}\n`);
+    return 0;
+  }
+  if (parsed.version) {
+    streams.output.write(`${BIN_NAME} ${PACKAGE_VERSION}\n`);
+    return 0;
+  }
+  if (parsed.command === 'doctor') {
+    streams.output.write(`${renderDoctor()}\n`);
     return 0;
   }
   if (parsed.command === 'providers') {
@@ -154,6 +169,7 @@ export function parseArgs(argv) {
   const values = [...argv];
   let print = false;
   let help = false;
+  let version = false;
   let configPath = null;
   let command = null;
   const configValues = [];
@@ -164,8 +180,16 @@ export function parseArgs(argv) {
   let outputFormat = 'json';
   let inputFormat = 'text';
 
-  if (values[0] === 'init' || values[0] === 'providers' || values[0] === 'setup') {
+  if (COMMANDS.has(values[0])) {
     command = values.shift();
+  }
+
+  if (command === 'exec') print = true;
+  if (command === 'resume') {
+    continueSession = true;
+    if (values.length && looksLikeSessionId(values[0])) {
+      resumeSessionId = values.shift();
+    }
   }
 
   while (values.length) {
@@ -224,6 +248,8 @@ export function parseArgs(argv) {
     } else if (value === '--config') {
       initHasExplicitConfig = true;
       configValues.push(requireValue(value, values));
+    } else if (value === '-V' || value === '--version') {
+      version = true;
     } else if (value === '-h' || value === '--help') {
       help = true;
     } else {
@@ -234,6 +260,7 @@ export function parseArgs(argv) {
   return {
     print,
     help,
+    version,
     command,
     initHasExplicitConfig,
     configPath,
@@ -655,6 +682,25 @@ function loadSessionById(id) {
   }
 }
 
+function renderDoctor() {
+  let config = null;
+  let configError = null;
+  try {
+    config = loadModelConfig.sync();
+  } catch (error) {
+    configError = error;
+  }
+  return [
+    `${APP_NAME} doctor`,
+    `version: ${PACKAGE_VERSION}`,
+    `node: ${process.version}`,
+    config?.model && config?.model_provider
+      ? `model: ${config.model_provider}/${config.model}`
+      : 'model: not configured',
+    configError ? `config: ${configError.message}` : 'config: ok'
+  ].join('\n');
+}
+
 function loadLatestSession() {
   const dir = sessionDir();
   if (!existsSync(dir)) return null;
@@ -758,7 +804,16 @@ function compactSession(session, instructions = '') {
   saveSession(session);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(resolve(process.argv[1])) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+  }
+}
+
+if (isMainModule()) {
   const code = await main();
   process.exitCode = code;
 }

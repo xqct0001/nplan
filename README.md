@@ -22,72 +22,43 @@ bounded plan that another executor can review or run later.
 - Uses configurable OpenAI-compatible model providers for semantic task
   understanding.
 
-## Quick Start
-
-From a source checkout, use the local launcher first. It requires Node.js in
-`PATH` but does not create a global command.
-
-PowerShell:
-
-```powershell
-Set-Location C:\Users\qiyue\Desktop\porgram\N_online_agent
-.\nplan.cmd setup
-.\nplan.cmd -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
-```
-
-CMD:
+## Install
 
 ```cmd
 cd /d C:\Users\qiyue\Desktop\porgram\N_online_agent
-nplan.cmd setup
-nplan.cmd -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
+install
 ```
 
-PowerShell does not run commands from the current directory unless they are
-prefixed with `.\`. CMD allows extension-free local helpers such as `install`.
-
-To install a global `nplan` command for this checkout:
-
-```powershell
-.\install.cmd
-nplan setup
-nplan providers
-```
-
-CMD:
+Then open CMD anywhere and run:
 
 ```cmd
-install
-nplan setup
 nplan providers
+nplan setup
+nplan
 ```
 
-`install` runs `npm link` and verifies that npm registered the global link.
-Remove that link later with:
-
-```powershell
-.\uninstall.cmd
-```
-
-CMD:
+Remove the global command:
 
 ```cmd
 uninstall
 ```
 
+If you run the installer from PowerShell, use `.\install.cmd`. After
+installation, `nplan` is the command entry point.
+
+## Quick Start
+
 `nplan setup` lets you choose a provider, paste an API key, fetch model choices
 from the provider's OpenAI-compatible model list endpoint when available, and
 write `.nplan/config.toml`. That directory is ignored by git.
 
-Start an interactive session:
+Start NPlan:
 
 ```cmd
 nplan
 nplan "Plan the release checklist"
+nplan -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
 ```
-
-If you did not run `install`, use `nplan.cmd` in CMD or `.\nplan.cmd` in
-PowerShell anywhere the examples show `nplan`.
 
 ## CLI
 
@@ -95,8 +66,12 @@ PowerShell anywhere the examples show `nplan`.
 nplan [options] [prompt]
 
 Commands:
+  exec [options] [prompt]
+                    Print one planning result and exit
   setup             Guided provider/API key/model setup wizard
   providers         List built-in model providers
+  resume [id]       Resume a saved planning session
+  doctor            Check local CLI configuration
 
 Options:
   -p, --print       Print one JSON result and exit
@@ -112,6 +87,7 @@ Options:
   --config-path <p> Load model config TOML
   --config key=value
                     Override config with dotted keys
+  -V, --version     Show version
 ```
 
 Legacy `-c key=value` config overrides still work, but `-c` by itself now
@@ -138,8 +114,9 @@ Interactive commands:
 The CLI follows Claude Code's command-line interaction shape where that fits a
 planning-only module: no arguments opens a session, a quoted prompt seeds a
 session, `-p` prints one result, stdin can be piped into print mode, and
-`--continue` / `--resume` reuse local session notes. Session notes are stored
-under `.nplan/sessions/`, which is ignored by git.
+`--continue` / `--resume` reuse local session notes. It also keeps Codex-style
+command entry points for `exec`, `resume`, and `doctor`. Session notes are
+stored under `.nplan/sessions/`, which is ignored by git.
 
 Shell execution through `!`, file editing, tool permission modes, MCP tool
 configuration, and remote-agent orchestration are intentionally unsupported.

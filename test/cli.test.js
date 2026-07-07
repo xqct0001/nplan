@@ -64,6 +64,20 @@ test('print mode can render a concise summary output', async () => {
   });
 });
 
+test('exec command is an alias for one-shot print mode', async () => {
+  await withModelServer(async ({ configPath, env }) => {
+    const result = await runCli(
+      ['exec', '--config-path', configPath, '--output-format', 'summary', 'implement TaskSpec schema'],
+      '',
+      env
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /status: planned/);
+    assert.equal(result.stderr, '');
+  });
+});
+
 test('print mode can continue the latest saved planning session', async () => {
   await withModelServer(async ({ configPath, env, cwd }) => {
     const first = await runCli(
@@ -116,12 +130,16 @@ test('help shows Claude-like command shapes and slash commands', async () => {
 
   assert.equal(result.code, 0);
   assert.match(result.stdout, /nplan \[options\] \[prompt\]/);
+  assert.match(result.stdout, /exec \[options\] \[prompt\]/);
   assert.match(result.stdout, /setup/);
+  assert.match(result.stdout, /resume \[id\]/);
+  assert.match(result.stdout, /doctor/);
   assert.doesNotMatch(result.stdout, /^\s*init\s/m);
   assert.match(result.stdout, /-p, --print/);
   assert.match(result.stdout, /--output-format/);
   assert.match(result.stdout, /-c, --continue/);
   assert.match(result.stdout, /-r, --resume/);
+  assert.match(result.stdout, /-V, --version/);
   assert.doesNotMatch(result.stdout, /--no-model/);
   assert.doesNotMatch(result.stdout, /--wizard/);
   assert.doesNotMatch(result.stdout, /\/init/);
@@ -138,6 +156,14 @@ test('argument parser supports Claude Code session flags and legacy config overr
   const continued = parseArgs(['-c', 'plan the interface']);
   assert.equal(continued.continueSession, true);
   assert.equal(continued.prompt, 'plan the interface');
+
+  const exec = parseArgs(['exec', 'plan the interface']);
+  assert.equal(exec.print, true);
+  assert.equal(exec.prompt, 'plan the interface');
+
+  const resumed = parseArgs(['resume', 'latest']);
+  assert.equal(resumed.continueSession, true);
+  assert.equal(resumed.resumeSessionId, 'latest');
 
   const configured = parseArgs(['-c', 'model=qwen-plus', '--config', 'model_provider=dashscope']);
   assert.equal(configured.continueSession, false);
@@ -449,6 +475,33 @@ test('interactive session starts before model setup and guides init', async () =
   assert.match(result.stdout, /NPlan/);
   assert.match(result.stdout, /model: not configured/);
   assert.match(result.stdout, /Run nplan setup/);
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('version flag prints the CLI version', async () => {
+  const result = await runCli(['--version']);
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /^nplan \d+\.\d+\.\d+/);
+  assert.equal(result.stderr, '');
+});
+
+test('doctor command reports local CLI status without requiring a model', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-doctor-'));
+  const result = await runCli(
+    ['doctor'],
+    '',
+    { HOME: dir, USERPROFILE: dir, NPLAN_HOME: '', NPLAN_MODEL: '' },
+    dir
+  );
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /NPlan doctor/);
+  assert.match(result.stdout, /version:/);
+  assert.match(result.stdout, /node:/);
+  assert.match(result.stdout, /model: not configured/);
+  assert.equal(result.stderr, '');
 
   await rm(dir, { recursive: true, force: true });
 });

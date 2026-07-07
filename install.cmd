@@ -17,27 +17,26 @@ if errorlevel 1 (
 )
 
 echo Installing NPlan command...
-call npm.cmd link
+call npm.cmd install -g .
 if errorlevel 1 exit /b %errorlevel%
 
 call npm.cmd list -g nplan --depth=0 >nul 2>nul
 if errorlevel 1 (
-  echo npm did not report a global nplan link after installation.
-  echo You can still run the local launcher with nplan.cmd from this folder.
+  echo npm did not report a global nplan installation.
   exit /b 1
+)
+
+for /f "delims=" %%P in ('npm.cmd prefix -g') do set "NPM_PREFIX=%%P"
+if defined NPM_PREFIX if exist "%NPM_PREFIX%\nplan.ps1" (
+  del /f /q "%NPM_PREFIX%\nplan.ps1" >nul 2>nul
 )
 
 echo.
 echo Install complete.
-echo Next:
+echo Open CMD and run:
+echo   nplan providers
 echo   nplan setup
 echo   nplan
 echo.
-echo If an existing terminal cannot find nplan, open a new terminal or run the
-echo local launcher from this folder:
-echo   CMD:        nplan.cmd providers
-echo   PowerShell: .\nplan.cmd providers
-echo.
 echo To remove the global command later:
-echo   CMD:        uninstall
-echo   PowerShell: .\uninstall.cmd
+echo   uninstall

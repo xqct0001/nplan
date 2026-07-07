@@ -92,15 +92,18 @@ The CLI mirrors a safe subset of Claude Code's command-line interaction shape:
 
 - no arguments: start an interactive session
 - quoted prompt: start an interactive session with an initial prompt
+- `exec [prompt]`: Codex-style one-shot print mode
 - `-p` / `--print`: print one JSON result and exit
 - `--output-format json|summary|text`: choose print-mode rendering
 - `--input-format text`: accept text from argv or stdin
 - `--continue` / `-c`: continue the latest local planning session
 - `--resume` / `-r [id]`: resume a saved local planning session
+- `resume [id]`: Codex-style session resume command
+- `--version` / `-V`: print the installed CLI version
+- `doctor`: print local CLI/config diagnostics without executing tasks
 - `setup`: guided provider/API key/model configuration
-- Windows CMD wrappers support source-checkout usage through `nplan.cmd`,
-  `setup`, `run`, and `start`; `install` creates a checked npm global link for
-  `nplan`, and `uninstall` removes that link
+- Windows CMD wrappers install and remove the global CLI through `install` and
+  `uninstall`; after installation the normal entry point is `nplan`
 - piped stdin with print mode: include stdin as additional prompt context
 - slash commands: `/help`, `/providers`, `/status`, `/config`, `/settings`,
   `/model`, `/context`, `/plan`, `/json`, `/compact`, `/clear`, `/reset`,

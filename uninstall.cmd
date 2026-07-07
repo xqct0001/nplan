@@ -9,17 +9,21 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo Removing NPlan global command link...
-call npm.cmd unlink -g nplan
+echo Removing NPlan global command...
+call npm.cmd uninstall -g nplan
 if errorlevel 1 exit /b %errorlevel%
+
+for /f "delims=" %%P in ('npm.cmd prefix -g') do set "NPM_PREFIX=%%P"
+if defined NPM_PREFIX (
+  if exist "%NPM_PREFIX%\nplan" del /f /q "%NPM_PREFIX%\nplan" >nul 2>nul
+  if exist "%NPM_PREFIX%\nplan.cmd" del /f /q "%NPM_PREFIX%\nplan.cmd" >nul 2>nul
+  if exist "%NPM_PREFIX%\nplan.ps1" del /f /q "%NPM_PREFIX%\nplan.ps1" >nul 2>nul
+)
 
 call npm.cmd list -g nplan --depth=0 >nul 2>nul
 if errorlevel 1 (
 echo.
 echo Uninstall complete.
-echo The local launcher still works from this folder:
-echo   CMD:        nplan.cmd providers
-echo   PowerShell: .\nplan.cmd providers
 exit /b 0
 )
 
