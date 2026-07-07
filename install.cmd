@@ -33,5 +33,11 @@ echo Next:
 echo   nplan setup
 echo   nplan
 echo.
+echo If an existing terminal cannot find nplan, open a new terminal or run the
+echo local launcher from this folder:
+echo   CMD:        nplan.cmd providers
+echo   PowerShell: .\nplan.cmd providers
+echo.
 echo To remove the global command later:
-echo   uninstall
+echo   CMD:        uninstall
+echo   PowerShell: .\uninstall.cmd

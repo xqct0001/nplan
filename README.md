@@ -25,7 +25,17 @@ bounded plan that another executor can review or run later.
 ## Quick Start
 
 From a source checkout, use the local launcher first. It requires Node.js in
-`PATH` but does not create a global command:
+`PATH` but does not create a global command.
+
+PowerShell:
+
+```powershell
+Set-Location C:\Users\qiyue\Desktop\porgram\N_online_agent
+.\nplan.cmd setup
+.\nplan.cmd -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
+```
+
+CMD:
 
 ```cmd
 cd /d C:\Users\qiyue\Desktop\porgram\N_online_agent
@@ -33,15 +43,18 @@ nplan.cmd setup
 nplan.cmd -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
 ```
 
-In PowerShell, prefix the local launcher with `.\`:
+PowerShell does not run commands from the current directory unless they are
+prefixed with `.\`. CMD allows extension-free local helpers such as `install`.
+
+To install a global `nplan` command for this checkout:
 
 ```powershell
-.\nplan.cmd setup
-.\nplan.cmd providers
+.\install.cmd
+nplan setup
+nplan providers
 ```
 
-To install a global `nplan` command for this checkout, use the Windows CMD
-helper:
+CMD:
 
 ```cmd
 install
@@ -51,6 +64,12 @@ nplan providers
 
 `install` runs `npm link` and verifies that npm registered the global link.
 Remove that link later with:
+
+```powershell
+.\uninstall.cmd
+```
+
+CMD:
 
 ```cmd
 uninstall

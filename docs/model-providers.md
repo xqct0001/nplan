@@ -63,9 +63,9 @@ Recommended setup:
 nplan setup
 ```
 
-From a source checkout without the global link, use `nplan.cmd providers` and
-`nplan.cmd setup` in CMD, or `.\nplan.cmd providers` and `.\nplan.cmd setup` in
-PowerShell.
+From a source checkout without the global link, use `.\nplan.cmd providers` and
+`.\nplan.cmd setup` in PowerShell, or `nplan.cmd providers` and
+`nplan.cmd setup` in CMD.
 
 `nplan setup` asks for a provider, API key, and model. For built-in providers it
 uses the provider's OpenAI-compatible model list URL when available. For custom

@@ -19,7 +19,17 @@ tags:
 
 ## 标准命令
 
-从源码目录使用时，推荐先走本地启动器：
+从源码目录使用时，推荐先走本地启动器。
+
+PowerShell：
+
+```powershell
+Set-Location C:\Users\qiyue\Desktop\porgram\N_online_agent
+.\nplan.cmd setup
+.\nplan.cmd -p "设计一个本地文件整理工具，可以扫描文件、分类，并输出 Markdown 报告"
+```
+
+CMD：
 
 ```cmd
 cd /d C:\Users\qiyue\Desktop\porgram\N_online_agent

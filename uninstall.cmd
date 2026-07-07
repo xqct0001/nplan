@@ -15,11 +15,12 @@ if errorlevel 1 exit /b %errorlevel%
 
 call npm.cmd list -g nplan --depth=0 >nul 2>nul
 if errorlevel 1 (
-  echo.
-  echo Uninstall complete.
-  echo The local launcher still works from this folder:
-  echo   nplan.cmd providers
-  exit /b 0
+echo.
+echo Uninstall complete.
+echo The local launcher still works from this folder:
+echo   CMD:        nplan.cmd providers
+echo   PowerShell: .\nplan.cmd providers
+exit /b 0
 )
 
 echo.
