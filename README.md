@@ -24,26 +24,41 @@ bounded plan that another executor can review or run later.
 
 ## Quick Start
 
-Use this Windows CMD flow:
+From a source checkout, use the local launcher first. It requires Node.js in
+`PATH` but does not create a global command:
 
 ```cmd
 cd /d C:\Users\qiyue\Desktop\porgram\N_online_agent
-install
-nplan setup
-nplan -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
+nplan.cmd setup
+nplan.cmd -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
 ```
 
-`install` links the `nplan` command globally. `nplan setup` lets you choose a
-provider, paste an API key, fetch model
-choices from the provider's OpenAI-compatible model list endpoint when available,
-and write `.nplan/config.toml`.
+In PowerShell, prefix the local launcher with `.\`:
 
-You can also run the local launcher directly without installing globally:
+```powershell
+.\nplan.cmd setup
+.\nplan.cmd providers
+```
+
+To install a global `nplan` command for this checkout, use the Windows CMD
+helper:
 
 ```cmd
+install
 nplan setup
 nplan providers
 ```
+
+`install` runs `npm link` and verifies that npm registered the global link.
+Remove that link later with:
+
+```cmd
+uninstall
+```
+
+`nplan setup` lets you choose a provider, paste an API key, fetch model choices
+from the provider's OpenAI-compatible model list endpoint when available, and
+write `.nplan/config.toml`. That directory is ignored by git.
 
 Start an interactive session:
 
@@ -51,6 +66,9 @@ Start an interactive session:
 nplan
 nplan "Plan the release checklist"
 ```
+
+If you did not run `install`, use `nplan.cmd` in CMD or `.\nplan.cmd` in
+PowerShell anywhere the examples show `nplan`.
 
 ## CLI
 

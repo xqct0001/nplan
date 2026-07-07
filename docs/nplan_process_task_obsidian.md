@@ -19,14 +19,15 @@ tags:
 
 ## 标准命令
 
-推荐使用 Windows CMD：
+从源码目录使用时，推荐先走本地启动器：
 
 ```cmd
 cd /d C:\Users\qiyue\Desktop\porgram\N_online_agent
-install
-nplan setup
-nplan -p "设计一个本地文件整理工具，可以扫描文件、分类，并输出 Markdown 报告"
+nplan.cmd setup
+nplan.cmd -p "设计一个本地文件整理工具，可以扫描文件、分类，并输出 Markdown 报告"
 ```
+
+如果需要全局 `nplan` 命令，再运行 `install`；移除全局 link 使用 `uninstall`。
 
 `nplan setup` 是推荐的用户配置入口。它会引导选择 Provider、输入 API Key、获取模型列表并写入 `.nplan/config.toml`。
 
@@ -139,6 +140,8 @@ nplan -p "设计一个本地文件整理工具"
 nplan --continue
 nplan --resume <session-id>
 ```
+
+未安装全局 link 时，在 CMD 中把上面的 `nplan` 改成 `nplan.cmd`；在 PowerShell 中改成 `.\nplan.cmd`。
 
 进入后可以直接输入任务：
 

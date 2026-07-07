@@ -98,8 +98,9 @@ The CLI mirrors a safe subset of Claude Code's command-line interaction shape:
 - `--continue` / `-c`: continue the latest local planning session
 - `--resume` / `-r [id]`: resume a saved local planning session
 - `setup`: guided provider/API key/model configuration
-- Windows CMD wrappers allow extension-free commands such as `install`,
-  `setup`, `run`, and local/global `nplan`
+- Windows CMD wrappers support source-checkout usage through `nplan.cmd`,
+  `setup`, `run`, and `start`; `install` creates a checked npm global link for
+  `nplan`, and `uninstall` removes that link
 - piped stdin with print mode: include stdin as additional prompt context
 - slash commands: `/help`, `/providers`, `/status`, `/config`, `/settings`,
   `/model`, `/context`, `/plan`, `/json`, `/compact`, `/clear`, `/reset`,

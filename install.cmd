@@ -20,8 +20,18 @@ echo Installing NPlan command...
 call npm.cmd link
 if errorlevel 1 exit /b %errorlevel%
 
+call npm.cmd list -g nplan --depth=0 >nul 2>nul
+if errorlevel 1 (
+  echo npm did not report a global nplan link after installation.
+  echo You can still run the local launcher with nplan.cmd from this folder.
+  exit /b 1
+)
+
 echo.
 echo Install complete.
 echo Next:
 echo   nplan setup
 echo   nplan
+echo.
+echo To remove the global command later:
+echo   uninstall
