@@ -43,6 +43,36 @@ test('derivePrPlan creates clarification todos without a task graph', () => {
   assert.deepEqual(validatePrPlan(prPlan), { valid: true, issues: [] });
 });
 
+test('validatePrPlan fails when a planned todo is missing source_task_id', () => {
+  const prPlan = derivePrPlan(samplePlannedResult(), fixedOptions());
+  prPlan.todo_items[0].source_task_id = '';
+
+  assert.deepEqual(validatePrPlan(prPlan), {
+    valid: false,
+    issues: ['todo_missing_source_task_id']
+  });
+});
+
+test('validatePrPlan allows clarification todos without source_task_id', () => {
+  const prPlan = derivePrPlan(sampleClarificationResult(), fixedOptions());
+  prPlan.todo_items[0].source_task_id = '';
+
+  assert.deepEqual(validatePrPlan(prPlan), { valid: true, issues: [] });
+});
+
+test('derivePrPlan uses taskplan tasks for plan_invalid results and builds a Mermaid graph', () => {
+  const prPlan = derivePrPlan(samplePlanInvalidResult(), fixedOptions());
+
+  assert.equal(prPlan.status, 'plan_invalid');
+  assert.equal(prPlan.todo_items.length, 2);
+  assert.equal(prPlan.todo_items[0].id, 'T1');
+  assert.equal(prPlan.todo_items[1].source_task_id, 'T2');
+  assert.match(renderPrPlanTodo(prPlan), /- \[ \] T1 Add CLI todo command/);
+  assert.match(renderPrPlanTodo(prPlan), /depends on: T1/);
+  assert.match(prPlan.obsidian.mermaid, /flowchart TD/);
+  assert.match(prPlan.obsidian.mermaid, /T1 --> T2/);
+});
+
 test('renderPrPlanTodo includes dependencies, outputs, and acceptance checks', () => {
   const text = renderPrPlanTodo(derivePrPlan(samplePlannedResult(), fixedOptions()));
 
@@ -163,5 +193,12 @@ function sampleClarificationResult() {
       source_map: [],
       evidence_map: []
     }
+  };
+}
+
+function samplePlanInvalidResult() {
+  return {
+    ...samplePlannedResult(),
+    status: 'plan_invalid'
   };
 }

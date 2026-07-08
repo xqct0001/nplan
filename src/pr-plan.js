@@ -5,10 +5,8 @@ export function derivePrPlan(result, options = {}) {
   const goal = result?.taskplan?.global_goal || result?.taskspec?.inferred_goal || 'Planning request';
   const planId = safePlanId(now, goal);
   const sourceLinks = sourceLinksFor(result);
-  const todoItems =
-    status === 'planned'
-      ? taskTodos(result?.taskplan?.tasks || [])
-      : clarificationTodos(result);
+  const hasTaskTodos = Array.isArray(result?.taskplan?.tasks) && result.taskplan.tasks.length > 0;
+  const todoItems = hasTaskTodos ? taskTodos(result.taskplan.tasks) : clarificationTodos(result);
   const verificationSteps = verificationStepsFor(result, todoItems);
   const taskLinks = taskLinksFor(result?.taskplan?.tasks || []);
   const prTitle = titleCase(goal);
@@ -32,7 +30,7 @@ export function derivePrPlan(result, options = {}) {
       title: `PR Plan: ${prTitle}`,
       tags: ['nplan', 'pr-plan'],
       task_aliases: todoItems.map((item) => taskAlias(item)),
-      mermaid: status === 'planned' ? mermaidFor(todoItems) : ''
+      mermaid: hasTaskTodos ? mermaidFor(todoItems) : ''
     }
   };
 
@@ -49,6 +47,9 @@ export function validatePrPlan(prPlan) {
   for (const item of prPlan.todo_items || []) {
     if (!nonEmptyString(item.id)) issues.push('todo_missing_id');
     if (!nonEmptyString(item.title)) issues.push('todo_missing_title');
+    if (nonEmptyString(item.id) && !isClarificationTodo(item) && !nonEmptyString(item.source_task_id)) {
+      issues.push('todo_missing_source_task_id');
+    }
     if (!Array.isArray(item.acceptance) || !item.acceptance.length) issues.push('todo_missing_acceptance');
   }
   if (!prPlan.pr_draft || typeof prPlan.pr_draft !== 'object') issues.push('missing_pr_draft');
@@ -306,4 +307,8 @@ function escapeMermaid(value) {
 
 function yamlScalar(value) {
   return String(value || '').replace(/[\r\n:]/g, ' ').trim();
+}
+
+function isClarificationTodo(item) {
+  return /^Q\d+$/i.test(String(item?.id || '').trim());
 }
