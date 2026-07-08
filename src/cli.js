@@ -1,16 +1,22 @@
 #!/usr/bin/env node
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import readline from 'node:readline';
 import { stdin as input, stdout as output } from 'node:process';
-import { join, resolve } from 'node:path';
+import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { LocalPlanningAgent } from './agent.js';
 import { OpenAICompatibleTaskModel } from './model-client.js';
 import { loadModelConfig, parseConfigOverrides } from './model-config.js';
 import { initHint, renderProviderList, writeProjectModelConfig } from './model-init.js';
-import { derivePrPlan, renderPrPlanSources, renderPrPlanTodo } from './pr-plan.js';
+import {
+  defaultPrPlanExportPath,
+  derivePrPlan,
+  renderObsidianPrPlan,
+  renderPrPlanSources,
+  renderPrPlanTodo
+} from './pr-plan.js';
 import { runModelSetupWizard } from './model-wizard.js';
 
 const APP_NAME = 'NPlan';
@@ -58,6 +64,8 @@ Interactive commands:
   /context          Show the last context curation summary
   /sources          Show source and evidence details for the last result
   /todo             Show the PR planning todo list for the last result
+  /revise <text>    Replan using the last result plus additional context
+  /export [path]    Export the last plan as Obsidian-friendly Markdown
   /plan <prompt>    Analyze a prompt and show a planning summary
   /json             Print the last full JSON result
   /compact [note]   Compact saved planning session notes
@@ -353,6 +361,22 @@ async function handleInteractiveLine(line, { state, streams }) {
     streams.output.write(`${renderPrPlanTodo(state.lastPrPlan)}\n`);
     return false;
   }
+  if (slash.command === '/revise') {
+    const revision = slash.arg;
+    if (!revision) {
+      streams.output.write('Usage: /revise <additional context>\n');
+      return false;
+    }
+    const prompt = revisionPrompt(state.lastResult, revision);
+    streams.output.write('revised plan:\n');
+    await analyzeAndRender(prompt, { state, streams });
+    return false;
+  }
+  if (slash.command === '/export') {
+    const message = handleExportCommand(slash.arg, state);
+    streams.output.write(`${message}\n`);
+    return false;
+  }
   if (slash.command === '/model') {
     streams.output.write(`${handleModelCommand(slash.arg, state)}\n`);
     return false;
@@ -579,6 +603,31 @@ function handleCompactCommand(arg, state) {
   }
 }
 
+function handleExportCommand(arg, state) {
+  if (!state.lastPrPlan) return 'No export yet. Run /plan <prompt> first.';
+  try {
+    const target = resolveExportPath(arg, state.lastPrPlan);
+    const markdown = renderObsidianPrPlan(state.lastPrPlan);
+    mkdirSync(dirname(target.absolute), { recursive: true });
+    writeFileSync(target.absolute, markdown, 'utf8');
+    return `exported: ${target.display}`;
+  } catch (error) {
+    return `export failed: ${error.message}`;
+  }
+}
+
+function resolveExportPath(arg, prPlan) {
+  const raw = String(arg || '').trim() || defaultPrPlanExportPath(prPlan);
+  if (extname(raw).toLowerCase() !== '.md') {
+    throw new Error('export path must end with .md');
+  }
+  const absolute = resolve(raw);
+  if (existsSync(absolute) && lstatSync(absolute).isDirectory()) {
+    throw new Error('export path points to a directory');
+  }
+  return { absolute, display: raw.replace(/\\/g, '/') };
+}
+
 function setupRequiredMessage(error) {
   const detail = error ? ` (${error})` : '';
   return `Model setup required${detail}. Run ${SETUP_COMMAND}.`;
@@ -631,6 +680,24 @@ function promptWithStdin(prompt, stdinText) {
   const trimmedStdin = stdinText.trim();
   if (trimmedPrompt && trimmedStdin) return `${trimmedPrompt}\n\nPiped input:\n${trimmedStdin}`;
   return trimmedPrompt || trimmedStdin;
+}
+
+function revisionPrompt(lastResult, revision) {
+  if (!lastResult) return revision;
+  const goal = lastResult.taskspec?.inferred_goal || lastResult.taskplan?.global_goal || '';
+  const previous = lastResult.taskspec?.surface_request || goal || '';
+  const questions =
+    lastResult.clarification_questions ||
+    lastResult.taskspec?.clarification?.questions ||
+    [];
+  const tasks = (lastResult.taskplan?.tasks || []).map((task) => `${task.id}: ${task.title}`);
+  return [
+    previous ? `Previous request:\n${previous}` : null,
+    goal ? `Previous goal:\n${goal}` : null,
+    questions.length ? `Clarification questions:\n${questions.map((item) => `- ${item}`).join('\n')}` : null,
+    tasks.length ? `Previous plan:\n${tasks.map((item) => `- ${item}`).join('\n')}` : null,
+    `Revision:\n${revision}`
+  ].filter(Boolean).join('\n\n');
 }
 
 function readAll(stream) {

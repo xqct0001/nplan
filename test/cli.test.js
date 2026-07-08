@@ -149,6 +149,8 @@ test('help shows Claude-like command shapes and slash commands', async () => {
   assert.match(result.stdout, /\/context/);
   assert.match(result.stdout, /\/sources/);
   assert.match(result.stdout, /\/todo/);
+  assert.match(result.stdout, /\/revise/);
+  assert.match(result.stdout, /\/export/);
   assert.match(result.stdout, /\/compact/);
   assert.match(result.stdout, /\/plan/);
   assert.match(result.stdout, /\/json/);
@@ -429,6 +431,9 @@ test('interactive session supports Claude-like session commands and planning bou
     child.stdin.write('/context\n');
     child.stdin.write('/sources\n');
     child.stdin.write('/todo\n');
+    child.stdin.write('/revise keep the first version single-file for Obsidian\n');
+    child.stdin.write('/export\n');
+    child.stdin.write('/export docs/plans/cli-pr-plan.md\n');
     child.stdin.write('/compact keep provider notes\n');
     child.stdin.write('/json\n');
     child.stdin.write('!echo unsafe\n');
@@ -440,6 +445,9 @@ test('interactive session supports Claude-like session commands and planning bou
     child.stdin.end();
 
     const [code] = await once(child, 'close');
+    const defaultExports = await readdir(join(cwd, '.nplan', 'exports'));
+    const defaultMarkdown = await readFile(join(cwd, '.nplan', 'exports', defaultExports[0]), 'utf8');
+    const customMarkdown = await readFile(join(cwd, 'docs', 'plans', 'cli-pr-plan.md'), 'utf8');
 
     assert.equal(code, 0);
     assert.equal(stderr, '');
@@ -452,6 +460,9 @@ test('interactive session supports Claude-like session commands and planning bou
     assert.match(stdout, /sources:/);
     assert.match(stdout, /todo:/);
     assert.match(stdout, /- \[ \] T1 Define TaskSpec artifacts/);
+    assert.match(stdout, /revised plan:/);
+    assert.match(stdout, /exported: \.nplan\/exports\//);
+    assert.match(stdout, /exported: docs\/plans\/cli-pr-plan\.md/);
     assert.match(stdout, /compacted session/);
     assert.match(stdout, /Full JSON: \/json/);
     assert.match(stdout, /"status": "planned"/);
@@ -461,6 +472,12 @@ test('interactive session supports Claude-like session commands and planning bou
     assert.match(stdout, /cleared\. New session:/);
     assert.match(stdout, /Unknown command\. Use \/help for commands\./);
     assert.match(stdout, /bye/);
+    assert.equal(defaultExports.length, 1);
+    assert.match(defaultMarkdown, /^---\ntype: nplan-pr-plan/m);
+    assert.match(defaultMarkdown, /## Todo/);
+    assert.match(defaultMarkdown, /```mermaid/);
+    assert.match(defaultMarkdown, /\[\[Task T1 - /);
+    assert.match(customMarkdown, /## PR Draft/);
   });
 });
 
