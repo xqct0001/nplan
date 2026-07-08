@@ -21,6 +21,7 @@ test('derivePrPlan creates todos, links, verification, and PR draft for planned 
   assert.equal(prPlan.session_id, '20260708220500-abcd1234');
   assert.equal(prPlan.plan_id, '20260708-improve-cli-planning-workflow');
   assert.equal(prPlan.todo_items.length, 2);
+  assert.equal(prPlan.todo_items[0].kind, 'task');
   assert.deepEqual(prPlan.todo_items[1].dependencies, ['T1']);
   assert.equal(prPlan.source_links.length, 2);
   assert.ok(prPlan.verification_steps.includes('T1: CLI command help mentions /todo'));
@@ -38,6 +39,7 @@ test('derivePrPlan creates clarification todos without a task graph', () => {
   assert.equal(prPlan.status, 'needs_clarification');
   assert.equal(prPlan.todo_items.length, 1);
   assert.equal(prPlan.todo_items[0].id, 'Q1');
+  assert.equal(prPlan.todo_items[0].kind, 'clarification');
   assert.equal(prPlan.todo_items[0].title, 'Which export path should be used?');
   assert.equal(prPlan.obsidian.mermaid, '');
   assert.deepEqual(validatePrPlan(prPlan), { valid: true, issues: [] });
@@ -58,6 +60,23 @@ test('validatePrPlan allows clarification todos without source_task_id', () => {
   prPlan.todo_items[0].source_task_id = '';
 
   assert.deepEqual(validatePrPlan(prPlan), { valid: true, issues: [] });
+});
+
+test('validatePrPlan rejects malformed todo metadata and empty acceptance', () => {
+  const prPlan = derivePrPlan(samplePlannedResult(), fixedOptions());
+  prPlan.todo_items = [
+    null,
+    { ...prPlan.todo_items[0], kind: '', acceptance: ['  '] }
+  ];
+
+  const report = validatePrPlan(prPlan);
+
+  assert.equal(report.valid, false);
+  assert.deepEqual(new Set(report.issues), new Set([
+    'todo_invalid',
+    'todo_missing_kind',
+    'todo_missing_acceptance'
+  ]));
 });
 
 test('derivePrPlan uses taskplan tasks for plan_invalid results and builds a Mermaid graph', () => {

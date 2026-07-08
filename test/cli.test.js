@@ -481,6 +481,21 @@ test('interactive session supports Claude-like session commands and planning bou
   });
 });
 
+test('interactive revise explains when there is no previous plan', async () => {
+  await withModelServer(async ({ configPath, env }) => {
+    const result = await runCli(
+      ['--config-path', configPath],
+      '/revise make the plan Obsidian friendly\n/exit\n',
+      env
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /No previous plan yet; planning from this text\./);
+    assert.match(result.stdout, /revised plan:/);
+    assert.equal(result.stderr, '');
+  });
+});
+
 test('interactive session starts before model setup and guides init', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'nplan-no-model-interactive-'));
   const result = await runCli(

@@ -45,12 +45,17 @@ export function validatePrPlan(prPlan) {
   }
   if (!Array.isArray(prPlan.todo_items) || !prPlan.todo_items.length) issues.push('missing_todo_items');
   for (const item of prPlan.todo_items || []) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      issues.push('todo_invalid');
+      continue;
+    }
     if (!nonEmptyString(item.id)) issues.push('todo_missing_id');
     if (!nonEmptyString(item.title)) issues.push('todo_missing_title');
-    if (nonEmptyString(item.id) && !isClarificationTodo(item) && !nonEmptyString(item.source_task_id)) {
+    if (!isTodoKind(item.kind)) issues.push('todo_missing_kind');
+    if (item.kind === 'task' && !nonEmptyString(item.source_task_id)) {
       issues.push('todo_missing_source_task_id');
     }
-    if (!Array.isArray(item.acceptance) || !item.acceptance.length) issues.push('todo_missing_acceptance');
+    if (!Array.isArray(item.acceptance) || !item.acceptance.some(nonEmptyString)) issues.push('todo_missing_acceptance');
   }
   if (!prPlan.pr_draft || typeof prPlan.pr_draft !== 'object') issues.push('missing_pr_draft');
   if (!prPlan.obsidian || typeof prPlan.obsidian !== 'object') issues.push('missing_obsidian');
@@ -155,6 +160,7 @@ export function defaultPrPlanExportPath(prPlan) {
 function taskTodos(tasks) {
   return tasks.map((task) => ({
     id: String(task.id || '').trim(),
+    kind: 'task',
     title: String(task.title || '').trim(),
     source_task_id: String(task.id || '').trim(),
     dependencies: arrayOfStrings(task.dependencies),
@@ -169,6 +175,7 @@ function clarificationTodos(result) {
   const questions = result?.clarification_questions || result?.taskspec?.clarification?.questions || [];
   return questions.map((question, index) => ({
     id: `Q${index + 1}`,
+    kind: 'clarification',
     title: String(question).trim(),
     source_task_id: '',
     dependencies: [],
@@ -309,6 +316,6 @@ function yamlScalar(value) {
   return String(value || '').replace(/[\r\n:]/g, ' ').trim();
 }
 
-function isClarificationTodo(item) {
-  return /^Q\d+$/i.test(String(item?.id || '').trim());
+function isTodoKind(value) {
+  return value === 'task' || value === 'clarification';
 }

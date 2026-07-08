@@ -367,6 +367,9 @@ async function handleInteractiveLine(line, { state, streams }) {
       streams.output.write('Usage: /revise <additional context>\n');
       return false;
     }
+    if (!state.lastResult) {
+      streams.output.write('No previous plan yet; planning from this text.\n');
+    }
     const prompt = revisionPrompt(state.lastResult, revision);
     streams.output.write('revised plan:\n');
     await analyzeAndRender(prompt, { state, streams });
