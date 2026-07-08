@@ -19,3 +19,11 @@ export { makeEvidenceItem, makeSourceRef } from './provenance.js';
 export { extractMarkdownLinks, knowledgeMetadataForText, parseKnowledgeDocument } from './okf.js';
 export { compileTaskSpec, composeTaskSpecFromModel, stripPromptArtifacts } from './understanding.js';
 export { validateTaskPlan, validateTaskSpec } from './validation.js';
+export {
+  defaultPrPlanExportPath,
+  derivePrPlan,
+  renderObsidianPrPlan,
+  renderPrPlanSources,
+  renderPrPlanTodo,
+  validatePrPlan
+} from './pr-plan.js';
