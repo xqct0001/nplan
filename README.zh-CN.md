@@ -90,6 +90,10 @@ Options:
 /config, /settings
 /model [name]
 /context
+/sources
+/todo
+/revise <additional context>
+/export [path]
 /plan <prompt>
 /json
 /compact [note]
@@ -99,9 +103,11 @@ Options:
 /exit, /quit
 ```
 
+`/todo` 和 `/sources` 是最近一次规划结果的只读视图，用来查看 PR 规划清单和上下文证据。`/revise <additional context>` 会在保留规划边界的前提下，基于上一版结果补充上下文后重新规划。`/export` 是唯一会写出新规划文档的交互命令；不带路径时会写入 `.nplan/exports/<plan-id>.md`，带路径时会写入指定的 Markdown 文件。导出的内容是适合 Obsidian 使用的规划笔记，不会创建真实 PR，也不会执行任务。
+
 CLI 会在不突破规划边界的前提下对齐 Claude Code 的交互形态：无参数进入会话、带引号的 prompt 作为初始任务、`-p` 单次输出、stdin 管道输入、`--continue` / `--resume` 复用本地会话记录。同时保留 Codex 风格的 `exec`、`resume`、`doctor` 命令入口。会话记录保存在 `.nplan/sessions/`，该目录已被 git 忽略。
 
-本项目刻意不支持 `!` shell 执行、文件编辑、工具权限模式、MCP 工具配置或远程 Agent 编排。
+本项目刻意不支持 `!` shell 执行、文件编辑、工具权限模式、MCP 工具配置或远程 Agent 编排。`/export` 是明确列出的边界例外：它只会写出用户要求的 Markdown 规划产物，不会改动源码、创建真实 PR 或执行任务。
 
 ## 模型 Provider
 

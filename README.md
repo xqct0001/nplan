@@ -102,6 +102,10 @@ Interactive commands:
 /config, /settings
 /model [name]
 /context
+/sources
+/todo
+/revise <additional context>
+/export [path]
 /plan <prompt>
 /json
 /compact [note]
@@ -110,6 +114,13 @@ Interactive commands:
 /resume [id]
 /exit, /quit
 ```
+
+`/todo` and `/sources` are read-only views of the latest planning result.
+`/revise <additional context>` replans from the latest result while keeping the
+session in planning mode. `/export` is the only interactive command that writes
+a new planning artifact; without a path it writes `.nplan/exports/<plan-id>.md`,
+and with a path it writes the requested Markdown file. The export is an
+Obsidian-friendly planning note, not a submitted PR or executed task.
 
 The CLI follows Claude Code's command-line interaction shape where that fits a
 planning-only module: no arguments opens a session, a quoted prompt seeds a
@@ -120,6 +131,9 @@ stored under `.nplan/sessions/`, which is ignored by git.
 
 Shell execution through `!`, file editing, tool permission modes, MCP tool
 configuration, and remote-agent orchestration are intentionally unsupported.
+`/export` is the explicit boundary exception: it writes a user-requested
+Markdown planning artifact only, without editing source files, creating a real
+PR, or executing tasks.
 
 ## Model Providers
 

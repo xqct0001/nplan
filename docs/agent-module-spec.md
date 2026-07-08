@@ -106,10 +106,15 @@ The CLI mirrors a safe subset of Claude Code's command-line interaction shape:
   `uninstall`; after installation the normal entry point is `nplan`
 - piped stdin with print mode: include stdin as additional prompt context
 - slash commands: `/help`, `/providers`, `/status`, `/config`, `/settings`,
-  `/model`, `/context`, `/plan`, `/json`, `/compact`, `/clear`, `/reset`,
-  `/new`, `/continue`, `/resume`, `/exit`, `/quit`
+  `/model`, `/context`, `/sources`, `/todo`, `/revise`, `/export`, `/plan`,
+  `/json`, `/compact`, `/clear`, `/reset`, `/new`, `/continue`, `/resume`,
+  `/exit`, `/quit`
 - interactive mode shows a concise planning summary; `/json` shows the full
   structured result
+- `/sources` and `/todo` are read-only views over the latest planning result;
+  `/revise <additional context>` replans from that latest result with extra
+  user context; `/export [path]` writes an Obsidian-friendly Markdown planning
+  note either to `.nplan/exports/<plan-id>.md` or to the user-specified path
 - local session notes are stored under `.nplan/sessions/` and contain planning
   prompts, statuses, goals, deliverable names, and task counts only
 - config overrides use `--config key=value`; legacy `-c key=value` remains
@@ -126,6 +131,10 @@ Unsupported on purpose:
 - remote agent management
 
 Those features conflict with this module's planning-only boundary.
+
+Explicit `/export` writes a user-requested Markdown planning artifact. This is
+the only product write introduced for the hybrid CLI workflow and does not
+execute tasks, edit source files, or create pull requests.
 
 ## Model Integration
 
