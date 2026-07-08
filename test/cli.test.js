@@ -147,6 +147,8 @@ test('help shows Claude-like command shapes and slash commands', async () => {
   assert.match(result.stdout, /\/config/);
   assert.match(result.stdout, /\/model/);
   assert.match(result.stdout, /\/context/);
+  assert.match(result.stdout, /\/sources/);
+  assert.match(result.stdout, /\/todo/);
   assert.match(result.stdout, /\/compact/);
   assert.match(result.stdout, /\/plan/);
   assert.match(result.stdout, /\/json/);
@@ -425,6 +427,8 @@ test('interactive session supports Claude-like session commands and planning bou
     child.stdin.write('/model\n');
     child.stdin.write('/plan implement TaskSpec schema and DAG verifier\n');
     child.stdin.write('/context\n');
+    child.stdin.write('/sources\n');
+    child.stdin.write('/todo\n');
     child.stdin.write('/compact keep provider notes\n');
     child.stdin.write('/json\n');
     child.stdin.write('!echo unsafe\n');
@@ -445,6 +449,9 @@ test('interactive session supports Claude-like session commands and planning bou
     assert.match(stdout, /model: localtest\/alternate-model/);
     assert.match(stdout, /status: planned/);
     assert.match(stdout, /context: sources=/);
+    assert.match(stdout, /sources:/);
+    assert.match(stdout, /todo:/);
+    assert.match(stdout, /- \[ \] T1 Define TaskSpec artifacts/);
     assert.match(stdout, /compacted session/);
     assert.match(stdout, /Full JSON: \/json/);
     assert.match(stdout, /"status": "planned"/);

@@ -10,6 +10,7 @@ import { LocalPlanningAgent } from './agent.js';
 import { OpenAICompatibleTaskModel } from './model-client.js';
 import { loadModelConfig, parseConfigOverrides } from './model-config.js';
 import { initHint, renderProviderList, writeProjectModelConfig } from './model-init.js';
+import { derivePrPlan, renderPrPlanSources, renderPrPlanTodo } from './pr-plan.js';
 import { runModelSetupWizard } from './model-wizard.js';
 
 const APP_NAME = 'NPlan';
@@ -55,6 +56,8 @@ Interactive commands:
                     Show active model configuration
   /model [name]     Show or switch the in-memory model for this session
   /context          Show the last context curation summary
+  /sources          Show source and evidence details for the last result
+  /todo             Show the PR planning todo list for the last result
   /plan <prompt>    Analyze a prompt and show a planning summary
   /json             Print the last full JSON result
   /compact [note]   Compact saved planning session notes
@@ -281,7 +284,7 @@ async function runInteractive({
   session,
   sessionNotice = null
 }) {
-  const state = { lastResult: null, requests: 0, runtime, runtimeError, session };
+  const state = { lastResult: null, lastPrPlan: null, requests: 0, runtime, runtimeError, session };
   streams.output.write(`${APP_NAME}\n`);
   streams.output.write(`cwd: ${process.cwd()}\n`);
   streams.output.write(`session: ${session.id}\n`);
@@ -342,6 +345,14 @@ async function handleInteractiveLine(line, { state, streams }) {
     streams.output.write(`${renderContextStatus(state.lastResult)}\n`);
     return false;
   }
+  if (line === '/sources') {
+    streams.output.write(`${renderPrPlanSources(state.lastPrPlan)}\n`);
+    return false;
+  }
+  if (line === '/todo') {
+    streams.output.write(`${renderPrPlanTodo(state.lastPrPlan)}\n`);
+    return false;
+  }
   if (slash.command === '/model') {
     streams.output.write(`${handleModelCommand(slash.arg, state)}\n`);
     return false;
@@ -352,6 +363,7 @@ async function handleInteractiveLine(line, { state, streams }) {
   }
   if (line === '/clear' || line === '/reset' || line === '/new') {
     state.lastResult = null;
+    state.lastPrPlan = null;
     state.session = createSession();
     streams.output.write(`cleared. New session: ${state.session.id}\n`);
     return false;
@@ -362,6 +374,7 @@ async function handleInteractiveLine(line, { state, streams }) {
       streams.output.write('No saved session found.\n');
     } else {
       state.lastResult = null;
+      state.lastPrPlan = null;
       state.session = loaded;
       streams.output.write(`resumed session ${loaded.id} (${loaded.turns.length} turns)\n`);
     }
@@ -373,6 +386,7 @@ async function handleInteractiveLine(line, { state, streams }) {
       streams.output.write(`No saved session found. Current session: ${state.session.id}\n`);
     } else {
       state.lastResult = null;
+      state.lastPrPlan = null;
       state.session = loaded;
       streams.output.write(`continuing session ${loaded.id} (${loaded.turns.length} turns)\n`);
     }
@@ -418,6 +432,7 @@ async function analyzeAndRender(prompt, { state, streams }) {
   }
   try {
     state.lastResult = await state.runtime.agent.analyzeAsync(prompt, contextForSession(state.session));
+    state.lastPrPlan = derivePrPlan(state.lastResult, { sessionId: state.session.id });
     state.requests += 1;
     const warning = recordSessionTurn(state.session, prompt, state.lastResult);
     streams.output.write(`${renderInteractiveResult(state.lastResult)}\n`);
