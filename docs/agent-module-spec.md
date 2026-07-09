@@ -102,6 +102,8 @@ The CLI mirrors a safe subset of Claude Code's command-line interaction shape:
 - `--version` / `-V`: print the installed CLI version
 - `doctor`: print local CLI/config diagnostics without executing tasks
 - `setup`: guided provider/API key/model configuration
+- first interactive TTY launch with no configured model starts the same guided
+  setup before opening the planning session
 - Windows CMD wrappers install and remove the global CLI through `install` and
   `uninstall`; after installation the normal entry point is `nplan`
 - piped stdin with print mode: include stdin as additional prompt context
@@ -167,10 +169,11 @@ wire_api = "chat_completions"
 ```
 
 When the model succeeds, `TaskSpec.provenance.model_used` is `true`. If no model
-is configured, interactive mode starts and tells the user to run `nplan setup`,
-while print mode exits with a model-required error. If a configured model call
-fails or returns invalid JSON, the analysis fails instead of falling back to
-local rules.
+is configured, first interactive TTY launch starts `nplan setup` before opening
+the planning session. Non-TTY interactive mode still starts and tells the user
+to run `nplan setup`, while print mode exits with a model-required error. If a
+configured model call fails or returns invalid JSON, the analysis fails instead
+of falling back to local rules.
 
 ## Context Curator Lite
 

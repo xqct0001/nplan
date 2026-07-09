@@ -5,11 +5,11 @@ import { once } from 'node:events';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Readable, Writable } from 'node:stream';
+import { PassThrough, Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { parseArgs } from '../src/cli.js';
+import { main, parseArgs } from '../src/cli.js';
 import { loadModelConfig } from '../src/model-config.js';
 import { runModelSetupWizard } from '../src/model-wizard.js';
 
@@ -494,6 +494,125 @@ test('interactive revise explains when there is no previous plan', async () => {
     assert.match(result.stdout, /revised plan:/);
     assert.equal(result.stderr, '');
   });
+});
+
+test('interactive session exits on one terminal Ctrl+C', async () => {
+  await withModelServer(async ({ configPath, cwd }) => {
+    const oldCwd = process.cwd();
+    const input = new PassThrough();
+    input.isTTY = true;
+    let rawModeReleased = false;
+    let inputPaused = false;
+    input.setRawMode = (enabled) => {
+      if (enabled === false) rawModeReleased = true;
+      return input;
+    };
+    const pauseInput = input.pause.bind(input);
+    input.pause = () => {
+      inputPaused = true;
+      return pauseInput();
+    };
+
+    let stdout = '';
+    let stderr = '';
+    let sentInterrupt = false;
+    const output = new Writable({
+      write(chunk, _encoding, callback) {
+        stdout += chunk.toString();
+        if (!sentInterrupt && stdout.includes('nplan> ')) {
+          sentInterrupt = true;
+          setImmediate(() => {
+            input.write('\x03');
+          });
+        }
+        callback();
+      }
+    });
+    output.isTTY = true;
+    output.columns = 80;
+    const error = new Writable({
+      write(chunk, _encoding, callback) {
+        stderr += chunk.toString();
+        callback();
+      }
+    });
+
+    try {
+      process.chdir(cwd);
+      const code = await main(['--config-path', configPath], { input, output, error });
+
+      assert.equal(code, 0);
+      assert.equal(stderr, '');
+      assert.match(stdout, /bye/);
+      assert.equal(rawModeReleased, true);
+      assert.equal(inputPaused, true);
+    } finally {
+      input.destroy();
+      process.chdir(oldCwd);
+    }
+  });
+});
+
+test('first interactive TTY launch runs setup then opens configured session', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-first-run-tty-'));
+  const oldCwd = process.cwd();
+  const input = new PassThrough();
+  input.isTTY = true;
+  input.setRawMode = () => input;
+  const scriptedInput = [
+    { pattern: /Choose provider number or id/, text: 'deepseek\n' },
+    { pattern: /DEEPSEEK_API_KEY/, text: '\n' },
+    { pattern: /Fetch model list/, text: 'N\n' },
+    { pattern: /Model name/, text: '\n' },
+    { pattern: /nplan> /, text: '/status\n/exit\n', end: true }
+  ];
+  let scriptedIndex = 0;
+
+  let stdout = '';
+  let stderr = '';
+  const output = new Writable({
+    write(chunk, _encoding, callback) {
+      stdout += chunk.toString();
+      const next = scriptedInput[scriptedIndex];
+      if (next && next.pattern.test(stdout)) {
+        scriptedIndex += 1;
+        setImmediate(() => {
+          if (next.end) input.end(next.text);
+          else input.write(next.text);
+        });
+      }
+      callback();
+    }
+  });
+  output.isTTY = true;
+  output.columns = 80;
+  const error = new Writable({
+    write(chunk, _encoding, callback) {
+      stderr += chunk.toString();
+      callback();
+    }
+  });
+
+  try {
+    process.chdir(dir);
+    const code = await main([], { input, output, error });
+    const config = await readFile(join(dir, '.nplan', 'config.toml'), 'utf8');
+
+    assert.equal(code, 0);
+    assert.equal(stderr, '');
+    assert.equal(scriptedIndex, scriptedInput.length);
+    assert.match(stdout, /No model is configured yet\. Starting first-run setup\./);
+    assert.match(stdout, /NPlan setup/);
+    assert.match(stdout, /Setup complete/);
+    assert.match(stdout, /model: deepseek\/deepseek-v4-flash/);
+    assert.match(stdout, /bye/);
+    assert.match(config, /model = "deepseek-v4-flash"/);
+    assert.match(config, /model_provider = "deepseek"/);
+  } finally {
+    process.chdir(oldCwd);
+    input.destroy();
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test('interactive session starts before model setup and guides init', async () => {

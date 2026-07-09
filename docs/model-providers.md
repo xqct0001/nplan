@@ -63,6 +63,10 @@ Recommended setup:
 nplan setup
 ```
 
+On a first interactive terminal launch with no configured model, `nplan` starts
+the same setup wizard before opening the planning session. Use `nplan setup`
+directly when you want to reconfigure an existing project.
+
 `nplan setup` asks for a provider, API key, and model. For built-in providers it
 uses the provider's OpenAI-compatible model list URL when available. For custom
 providers, paste the model list URL or accept the default `<base_url>/models`.
@@ -106,9 +110,9 @@ response_format = "none"
 
 ## Model Required Behavior
 
-If no model is configured, interactive mode still starts and guides the user to
-run `nplan setup`. Print mode exits with a model-required
-error and tells the user to run setup.
+If no model is configured, first interactive TTY launch starts the setup wizard.
+Non-TTY interactive mode still starts and guides the user to run `nplan setup`.
+Print mode exits with a model-required error and tells the user to run setup.
 
 If a configured model fails or returns invalid JSON, the analysis fails. The
 agent does not fall back to local rules to create a plan.

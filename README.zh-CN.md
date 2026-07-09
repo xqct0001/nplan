@@ -41,6 +41,8 @@ uninstall
 
 `nplan setup` 会引导你选择 Provider、输入 API Key、从 Provider 的 OpenAI-compatible 模型列表接口获取模型选项，并写入 `.nplan/config.toml`。该目录已被 git 忽略。
 
+如果还没有配置模型，在交互式终端里直接运行 `nplan` 会先启动同一个首次配置向导，然后再进入规划会话。`-p` 打印模式仍会清晰报错并提示先配置模型。
+
 启动 NPlan：
 
 ```cmd

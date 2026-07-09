@@ -52,6 +52,10 @@ installation, `nplan` is the command entry point.
 from the provider's OpenAI-compatible model list endpoint when available, and
 write `.nplan/config.toml`. That directory is ignored by git.
 
+If no model is configured yet, running `nplan` in an interactive terminal starts
+the same first-run setup wizard before opening the planning session. Print mode
+still exits with a clear setup-required error.
+
 Start NPlan:
 
 ```cmd

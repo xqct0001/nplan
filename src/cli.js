@@ -62,10 +62,10 @@ Interactive commands:
                     Show active model configuration
   /model [name]     Show or switch the in-memory model for this session
   /context          Show the last context curation summary
-  /sources          Show source and evidence details for the last result
-  /todo             Show the PR planning todo list for the last result
-  /revise <text>    Replan using the last result plus additional context
-  /export [path]    Export the last plan as Obsidian-friendly Markdown
+  /sources         Show source and evidence details for the last result
+  /todo            Show the PR planning todo list for the last result
+  /revise <text>   Replan using the last result plus additional context
+  /export [path]   Export the last plan as Obsidian-friendly Markdown
   /plan <prompt>    Analyze a prompt and show a planning summary
   /json             Print the last full JSON result
   /compact [note]   Compact saved planning session notes
@@ -78,6 +78,7 @@ Interactive commands:
 Notes:
   Type a task directly in interactive mode; it behaves like /plan <prompt>.
   Interactive mode shows a concise planning summary. Use -p or /json for full JSON.
+  First interactive launch with no configured model starts setup automatically.
   Use --config key=value for config overrides. The legacy "-c key=value" form still works.
   Shell execution with ! is intentionally unsupported.`;
 
@@ -138,6 +139,17 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
     }
     runtime = null;
     runtimeError = error.message;
+  }
+  if (!runtime && shouldRunInitialSetup({ parsed, streams, runtimeError })) {
+    try {
+      streams.output.write('No model is configured yet. Starting first-run setup.\n\n');
+      await runModelSetupWizard({ streams });
+      runtime = makeRuntime(parsed);
+      runtimeError = null;
+    } catch (error) {
+      streams.error.write(`setup failed: ${error.message}\n`);
+      return 1;
+    }
   }
   if (parsed.print) {
     const stdinText = await readAll(streams.input);
@@ -311,9 +323,21 @@ async function runInteractive({
     terminal: Boolean(streams.input.isTTY && streams.output.isTTY)
   });
   let closed = false;
+  const requestExit = () => {
+    if (closed) return;
+    streams.output.write('\nbye\n');
+    rl.close();
+  };
+  const onProcessInterrupt = () => {
+    requestExit();
+  };
   rl.on('close', () => {
     closed = true;
+    process.off('SIGINT', onProcessInterrupt);
+    releaseInteractiveInput(streams.input);
   });
+  rl.on('SIGINT', requestExit);
+  process.once('SIGINT', onProcessInterrupt);
 
   rl.prompt();
   for await (const rawLine of rl) {
@@ -638,6 +662,25 @@ function setupRequiredMessage(error) {
 
 function isModelConfigError(error) {
   return /model configuration is required|model is not configured/.test(error?.message || '');
+}
+
+function shouldRunInitialSetup({ parsed, streams, runtimeError }) {
+  return Boolean(
+    runtimeError &&
+    !parsed.print &&
+    streams.input?.isTTY &&
+    streams.output?.isTTY
+  );
+}
+
+function releaseInteractiveInput(inputStream) {
+  if (!inputStream?.isTTY) return;
+  try {
+    inputStream.setRawMode?.(false);
+  } catch {
+    // Some test streams advertise TTY shape without supporting raw mode.
+  }
+  inputStream.pause?.();
 }
 
 function writeConfigFromArgs(parsed) {
