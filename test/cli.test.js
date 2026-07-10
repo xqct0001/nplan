@@ -229,6 +229,103 @@ test('interactive clarification is concise and contains no empty plan sections',
   assert.doesNotMatch(text, /行动步骤|status:|Full JSON/);
 });
 
+test('plan invalid result summarizes duplicate ids plan errors and missing references in Chinese', () => {
+  const result = {
+    ...plannedChineseResult(),
+    status: 'plan_invalid',
+    taskplan_report: {
+      valid: false,
+      duplicate_task_ids: ['T1'],
+      plan_errors: ['duplicate_task_ids', 'invalid_plan_style'],
+      missing_dependency_refs: [['T2', 'T9']]
+    }
+  };
+  const text = renderInteractiveResult(result, { locale: 'zh-CN' });
+
+  assert.match(text, /计划中存在重复步骤/);
+  assert.match(text, /计划结构不受支持/);
+  assert.match(text, /引用了不存在的前置步骤/);
+  assert.doesNotMatch(text, /T1|T2|T9|duplicate_task_ids|invalid_plan_style/);
+});
+
+test('plan invalid result deduplicates safe policy summaries and hides unknown raw details', () => {
+  const result = {
+    ...plannedChineseResult(),
+    status: 'plan_invalid',
+    taskspec_report: {
+      valid: true,
+      future_validator_details: ['source-17', 'T2']
+    },
+    taskplan_report: {
+      valid: false,
+      policy_errors: ['task_too_coarse:T1', 'task_too_coarse:T1']
+    }
+  };
+  const text = renderInteractiveResult(result, { locale: 'zh-CN' });
+
+  assert.equal(text.match(/部分行动步骤过于笼统/g)?.length, 1);
+  assert.match(text, /计划校验未通过/);
+  assert.doesNotMatch(text, /T1|T2|source-17|task_too_coarse|future_validator_details/);
+});
+
+test('plan invalid result covers every validation category with safe English summaries', () => {
+  const result = {
+    ...plannedChineseResult(),
+    status: 'plan_invalid',
+    taskspec_report: {
+      valid: false,
+      missing_required_fields: ['target_object'],
+      conflicts: ['evidence_without_source:source-4']
+    },
+    taskplan_report: {
+      valid: false,
+      missing_required_fields: ['tasks'],
+      missing_task_fields: { T1: ['outputs'] },
+      cycle_detected: true,
+      missing_dependency_refs: [['T2', 'T9']],
+      missing_dependency_references: [['T2', 'T9']],
+      tasks_without_acceptance: ['T1'],
+      tasks_without_io: ['T2'],
+      coverage_gaps: ['Budget report'],
+      missing_deliverable_coverage: ['Budget report'],
+      duplicate_deliverable_coverage: ['Budget report:T1'],
+      policy_errors: ['task_too_coarse:T1', 'invalid_max_tasks'],
+      task_count_exceeded: { count: 13, max_tasks: 12 },
+      depth_exceeded: { T1: { depth: 4, max_depth: 3 } },
+      plan_errors: ['invalid_plan_style', 'future_problem:T2'],
+      duplicate_task_ids: ['T1'],
+      conflicts: ['planner_conflict:T2']
+    }
+  };
+  const text = renderInteractiveResult(result, { locale: 'en' });
+
+  for (const phrase of [
+    'Task details are incomplete',
+    'The plan is missing required fields',
+    'Some action steps are incomplete',
+    'Some action steps reference missing prerequisites',
+    'Some action steps have no acceptance criteria',
+    'Some action steps have missing inputs or outputs',
+    'The plan does not fully cover the required outputs',
+    'Some outputs are covered more than once',
+    'Some action steps are too broad',
+    'Planning constraints are invalid',
+    'The plan has too many action steps',
+    'The dependency chain is too deep',
+    'Action steps contain a dependency cycle',
+    'The plan contains duplicate action steps',
+    'The plan structure is unsupported',
+    'The plan contains conflicting information',
+    'Plan validation did not pass'
+  ]) {
+    assert.match(text, new RegExp(phrase));
+  }
+  assert.doesNotMatch(
+    text,
+    /T1|T2|T9|source-4|Budget report|task_too_coarse|invalid_max_tasks|future_problem|planner_conflict/
+  );
+});
+
 test('argument parser supports Claude Code session flags and legacy config override', () => {
   const continued = parseArgs(['-c', 'plan the interface']);
   assert.equal(continued.continueSession, true);

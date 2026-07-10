@@ -7,7 +7,12 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { LocalPlanningAgent } from './agent.js';
-import { message, normalizeSlashCommand, resolveLocale } from './i18n.js';
+import {
+  message,
+  normalizeSlashCommand,
+  resolveLocale,
+  summarizeValidationIssues
+} from './i18n.js';
 import { OpenAICompatiblePlanningModel } from './model-client.js';
 import { loadModelConfig, parseConfigOverrides } from './model-config.js';
 import { initHint, renderProviderList, writeProjectModelConfig } from './model-init.js';
@@ -577,7 +582,7 @@ export function renderInteractiveResult(result, options = {}) {
   lines.push(message(locale, 'result.conclusion'));
   lines.push(workPlan.conclusion || message(locale, 'result.none'));
 
-  if (workPlan.steps.length) {
+  if (result?.status !== 'plan_invalid' && workPlan.steps.length) {
     lines.push('', message(locale, 'result.steps'));
     workPlan.steps.forEach((step, index) => {
       lines.push(`${index + 1}. ${step.title}`);
@@ -588,12 +593,12 @@ export function renderInteractiveResult(result, options = {}) {
     });
   }
 
-  if (workPlan.acceptance.length) {
+  if (result?.status !== 'plan_invalid' && workPlan.acceptance.length) {
     lines.push('', message(locale, 'result.acceptance'));
     appendList(lines, workPlan.acceptance, message(locale, 'result.none'));
   }
 
-  const issues = reportIssues(result);
+  const issues = summarizeValidationIssues(result, locale);
   if (issues.length) {
     lines.push('', message(locale, 'result.issues'));
     appendList(lines, issues, message(locale, 'result.none'));
@@ -608,15 +613,6 @@ function appendList(lines, items, emptyLabel) {
   const values = Array.isArray(items) ? items.filter(Boolean) : [];
   if (!values.length) lines.push(`- ${emptyLabel}`);
   else values.forEach((item) => lines.push(`- ${item}`));
-}
-
-function reportIssues(result) {
-  const issues = [];
-  for (const issue of result.taskspec_report?.conflicts || []) issues.push(`TaskSpec: ${issue}`);
-  for (const issue of result.taskplan_report?.coverage_gaps || []) issues.push(`TaskPlan missing: ${issue}`);
-  for (const issue of result.taskplan_report?.policy_errors || []) issues.push(`TaskPlan policy: ${issue}`);
-  if (result.taskplan_report?.cycle_detected) issues.push('TaskPlan contains a dependency cycle');
-  return issues;
 }
 
 function makeRuntime(parsed) {
