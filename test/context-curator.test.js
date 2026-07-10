@@ -297,6 +297,69 @@ test('recursive symbolic directory is not traversed outside the project root', a
 
 });
 
+test('recursive junction cannot alias an ignored directory inside the project root', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'nplan-ignore-link-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const docs = join(root, 'docs');
+  const ignored = join(root, 'node_modules');
+  await mkdir(docs);
+  await mkdir(ignored);
+  await writeFile(join(docs, 'public.md'), '# Public', 'utf8');
+  await writeFile(join(ignored, 'private.md'), '# Ignored private marker', 'utf8');
+  if (!(await createLinkOrSkip(t, ignored, join(docs, 'alias'), 'dir'))) return;
+
+  const context = collectContext(root, {
+    policy: { root_files: [], scan_dirs: ['docs'] }
+  });
+
+  assert.deepEqual(context.source_map.map((source) => source.relative_path), ['docs/public.md']);
+});
+
+test('top-level scan directory junction is rejected even when its target is inside root', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'nplan-top-link-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const real = join(root, 'real');
+  await mkdir(real);
+  await writeFile(join(real, 'private.md'), '# Linked scan marker', 'utf8');
+  if (!(await createLinkOrSkip(t, real, join(root, 'alias'), 'dir'))) return;
+
+  const context = collectContext(root, {
+    policy: { root_files: [], scan_dirs: ['alias'] }
+  });
+
+  assert.deepEqual(context.source_map, []);
+});
+
+test('root file symlink cannot disguise a disallowed target extension', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'nplan-root-file-alias-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const target = join(root, 'private.txt');
+  await writeFile(target, 'Root file extension marker', 'utf8');
+  if (!(await createLinkOrSkip(t, target, join(root, 'alias.md'), 'file'))) return;
+
+  const context = collectContext(root, {
+    policy: { root_files: ['alias.md'], scan_dirs: [] }
+  });
+
+  assert.deepEqual(context.source_map, []);
+});
+
+test('recursive file symlink cannot disguise a disallowed target extension', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'nplan-file-alias-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const docs = join(root, 'docs');
+  await mkdir(docs);
+  const target = join(docs, 'private.txt');
+  await writeFile(target, 'Recursive extension marker', 'utf8');
+  if (!(await createLinkOrSkip(t, target, join(docs, 'alias.md'), 'file'))) return;
+
+  const context = collectContext(root, {
+    policy: { root_files: [], scan_dirs: ['docs'] }
+  });
+
+  assert.deepEqual(context.source_map, []);
+});
+
 async function createLinkOrSkip(t, target, path, kind) {
   try {
     const type = process.platform === 'win32' && kind === 'dir' ? 'junction' : kind;

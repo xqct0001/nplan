@@ -89,8 +89,9 @@ project-relative files or directories. Invalid absolute or parent paths are
 rejected, and configured scan paths cannot escape the project root. The
 effective policy is returned with the curated context so a cloud-consent
 fingerprint represents the same bounded scan shown in its preview.
-Source discovery checks both lexical and resolved paths, so symbolic links and
-junctions cannot expose a target outside the project root.
+Source discovery checks both lexical and resolved paths. Symbolic-link and
+junction entries are not followed, so aliases cannot bypass ignored-directory,
+allowed-extension, or project-root rules.
 
 The result is still a local, read-only `context_pack`. It does not execute
 tasks, write files, publish metadata, or call Knowledge Catalog.

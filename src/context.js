@@ -108,7 +108,8 @@ function pathIsExcluded(root, candidate, exclusions) {
 
 function safeEntry(realRoot, candidate) {
   const entry = existingEntry(candidate);
-  return entry && pathWithinRoot(realRoot, entry.realPath) ? entry : null;
+  if (!entry || entry.linkStat.isSymbolicLink()) return null;
+  return pathWithinRoot(realRoot, entry.realPath) ? entry : null;
 }
 
 function existingEntry(path) {

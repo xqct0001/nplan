@@ -203,9 +203,9 @@ and testable.
 
 `context_policy.user_exclusions` accepts project-relative files or directories.
 Exclusions are applied before source contents are read and are returned as part
-of the effective context policy. Lexical and resolved paths are both checked;
-symbolic links and junctions whose real target is outside the project root are
-never read.
+of the effective context policy. Lexical and resolved paths are both checked.
+Source, root-file, and scan-directory symbolic links or junctions are not
+followed, so aliases cannot bypass ignore or extension rules.
 
 Cloud-context consent records are stored at `.nplan/consent.json`. They contain
 only the provider id and base URL, a fingerprint of the bounded context scope,
