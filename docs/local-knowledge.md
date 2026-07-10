@@ -84,8 +84,23 @@ Recommended:
 6. `makeEvidenceItem()` includes concept metadata plus a body excerpt in the
    evidence text.
 
+Before these steps, `context_policy.user_exclusions` removes matching
+project-relative files or directories. Invalid absolute or parent paths are
+rejected, and configured scan paths cannot escape the project root. The
+effective policy is returned with the curated context so a cloud-consent
+fingerprint represents the same bounded scan shown in its preview.
+
 The result is still a local, read-only `context_pack`. It does not execute
 tasks, write files, publish metadata, or call Knowledge Catalog.
+
+## Cloud Context Consent Metadata
+
+Consent state is project-scoped at `.nplan/consent.json`. It stores provider
+identity, normalized context-scope fingerprint, confirmation time, and sorted
+project-relative exclusions only. API keys, task text, evidence text, and
+absolute source paths are never stored in this record. Changing the provider,
+scan directories, allowed extensions, ignored directories, source budgets, or
+exclusions invalidates the consent.
 
 ## Adding A New Concept
 
@@ -117,3 +132,4 @@ Not adopted:
 - remote catalog writes
 - vector search requirement
 - execution of user tasks
+- storing source contents in consent records

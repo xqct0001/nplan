@@ -22,6 +22,7 @@ It is intentionally small, local, and model-provider neutral.
 
 # Implementation Hooks
 
-* [Context policy](../../src/context-policy.js) controls scan roots, ignored directories, source budgets, and source priority.
+* [Context policy](../../src/context-policy.js) controls scan roots, ignored directories, project-relative exclusions, source budgets, and source priority.
 * [Provenance](../../src/provenance.js) turns files into source references and evidence items.
 * [Context curator](../../src/context-curator.js) ranks sources and builds the context pack before the model call.
+* [Cloud context consent](../../src/consent.js) fingerprints the bounded context scope and stores privacy-safe project consent metadata.

@@ -172,3 +172,57 @@ test('offline wording is downgraded instead of conflicting with network needs', 
   assert.ok(report.non_blocking.some((item) => item.code === 'offline_requirement_removed'));
   assert.ok(report.resolutions.some((item) => item.code === 'use_configured_provider_policy'));
 });
+
+test('context policy exclusions remove matching relative sources before consent preview', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-context-exclusions-'));
+  await mkdir(join(dir, 'docs'), { recursive: true });
+  await mkdir(join(dir, 'src'), { recursive: true });
+  await writeFile(join(dir, 'README.md'), '# Product', 'utf8');
+  await writeFile(join(dir, 'docs', 'private.md'), '# Private', 'utf8');
+  await writeFile(join(dir, 'src', 'agent.js'), 'export const agent = true;', 'utf8');
+
+  const context = curateContext('评估项目', {
+    root: dir,
+    context_policy: { user_exclusions: ['docs/private.md'] }
+  });
+
+  assert.equal(context.source_map.some((source) => source.relative_path === 'docs/private.md'), false);
+  assert.deepEqual(context.context_policy.user_exclusions, ['docs/private.md']);
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('exclusions also filter provided source maps before evidence is read', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-provided-exclusions-'));
+  const publicPath = join(dir, 'public.md');
+  const privatePath = join(dir, 'private.md');
+  await writeFile(publicPath, '# Public', 'utf8');
+  await writeFile(privatePath, '# Private evidence marker', 'utf8');
+  const collected = collectContext(dir, { policy: { root_files: ['public.md', 'private.md'] } });
+
+  const context = curateContext('summarize', {
+    ...collected,
+    context_policy: { user_exclusions: ['private.md'] }
+  });
+
+  assert.deepEqual(context.source_map.map((source) => source.relative_path), ['public.md']);
+  assert.doesNotMatch(JSON.stringify(context.evidence_map), /Private evidence marker/);
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('context discovery never follows configured paths outside the project root', async () => {
+  const parent = await mkdtemp(join(tmpdir(), 'nplan-context-boundary-'));
+  const root = join(parent, 'project');
+  await mkdir(root);
+  await writeFile(join(parent, 'outside.md'), '# Outside secret marker', 'utf8');
+  await writeFile(join(root, 'README.md'), '# Project', 'utf8');
+
+  const context = collectContext(root, {
+    policy: { root_files: ['README.md', '../outside.md'], scan_dirs: ['..'] }
+  });
+
+  assert.deepEqual(context.source_map.map((source) => source.relative_path), ['README.md']);
+
+  await rm(parent, { recursive: true, force: true });
+});

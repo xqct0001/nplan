@@ -1,5 +1,5 @@
 import { collectContext } from './context.js';
-import { mergeContextPolicy } from './context-policy.js';
+import { isContextPathExcluded, mergeContextPolicy } from './context-policy.js';
 import { detectRequestConflicts } from './conflicts.js';
 import { makeEvidenceItem } from './provenance.js';
 
@@ -8,7 +8,10 @@ export function curateContext(request, context = {}, options = {}) {
   const collected = context.source_map
     ? normalizeProvidedContext(context)
     : collectContext(context.root || process.cwd(), { policy });
-  const rankedSources = rankSources(collected.source_map || [], request, policy);
+  const eligibleSources = (collected.source_map || []).filter(
+    (source) => !isContextPathExcluded(source.relative_path, policy.user_exclusions)
+  );
+  const rankedSources = rankSources(eligibleSources, request, policy);
   const selectedSources = rankedSources.slice(0, policy.max_sources);
   const droppedSources = rankedSources.slice(policy.max_sources).map((source) => source.source_id);
   const evidence = selectedSources
@@ -33,6 +36,7 @@ export function curateContext(request, context = {}, options = {}) {
 
   return {
     ...context,
+    context_policy: policy,
     root: collected.root,
     files: selectedSources.map((source) => source.path),
     instruction_files:

@@ -1,6 +1,15 @@
 export { LocalPlanningAgent } from './agent.js';
 export { curateContext } from './context-curator.js';
 export { collectContext } from './context.js';
+export {
+  buildConsentScope,
+  consentFingerprint,
+  consentPreview,
+  hasValidConsent,
+  loadConsent,
+  revokeConsent,
+  saveConsent
+} from './consent.js';
 export { detectRequestConflicts } from './conflicts.js';
 export { buildPlannerInput, composeTaskPlanFromModel } from './planning.js';
 export {

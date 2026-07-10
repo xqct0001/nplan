@@ -30,8 +30,10 @@ model-list requests to provider endpoints.
 - `src/planning.js`: planner input mapping and bounded DAG generation.
 - `src/agent.js`: `LocalPlanningAgent` facade.
 - `src/context.js`: read-only local instruction file discovery.
-- `src/context-policy.js`: context discovery defaults, extension allowlist, and
-  source ranking policy.
+- `src/context-policy.js`: context discovery defaults, extension allowlist,
+  project-relative exclusions, and source ranking policy.
+- `src/consent.js`: project-scoped cloud-context consent fingerprints,
+  privacy-safe previews, and local consent-record persistence.
 - `src/provenance.js`: stable `SourceRef` and `EvidenceItem` construction.
 - `src/okf.js`: minimal OKF-style Markdown frontmatter and link parser for
   local knowledge concepts.
@@ -198,6 +200,17 @@ context governance layer. It does not introduce remote retrieval, multi-agent
 protocols, vector search, or model-free task parsing. It gives the model better
 grounding while keeping provenance, conflict checks, and planning gates local
 and testable.
+
+`context_policy.user_exclusions` accepts project-relative files or directories.
+Exclusions are applied before source contents are read and are returned as part
+of the effective context policy. Paths outside the project root are never
+discovered.
+
+Cloud-context consent records are stored at `.nplan/consent.json`. They contain
+only the provider id and base URL, a fingerprint of the bounded context scope,
+the confirmation time, and sorted exclusions. They do not contain API keys,
+task text, evidence text, or absolute source paths. Provider or effective scope
+changes invalidate the saved consent.
 
 ## OKF-Style Local Knowledge
 
