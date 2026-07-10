@@ -116,7 +116,7 @@ Options:
 /退出, /结束       /exit, /quit
 ```
 
-`/步骤` 和 `/来源` 是最近一次 WorkPlan 的只读视图。已有 WorkPlan 时直接输入文字，或使用 `/修改 <补充说明>`，都会按修订处理；`/新建` 会清空该状态。`/导出` 是唯一会写出新规划文档的交互命令；不带路径时写入 `.nplan/exports/<plan-id>.md`，带路径时写入指定的 Markdown 文件。导出的内容是适合 Obsidian 使用的 WorkPlan，不会执行任务。
+`/步骤` 和 `/来源` 是最近一次 WorkPlan 的只读视图。已有 WorkPlan 时直接输入文字、使用 `/修改 <补充说明>`，或在 `--resume` 后附带新任务文字，都会按修订处理；`/新建` 会清空该状态。`/导出` 是唯一会写出新规划文档的交互命令；不带路径时写入 `.nplan/exports/<plan-id>.md`，带路径时写入指定的 Markdown 文件。导出的内容是适合 Obsidian 使用的 WorkPlan，不会执行任务。
 
 CLI 会在不突破规划边界的前提下对齐 Claude Code 的交互形态：无参数进入会话、带引号的 prompt 作为初始任务、`-p` 单次输出、stdin 管道输入、`--continue` / `--resume` 复用本地会话记录。同时保留 Codex 风格的 `exec`、`resume`、`doctor` 命令入口。`.nplan/sessions/` 保存经过净化的 v2 会话，并恢复最近结果与 WorkPlan，使 `/步骤`、`/来源` 和 `/导出` 在恢复后立即可用。会话不会保存证据正文、绝对路径、API Key、Authorization 或来源内容；v1 会话会明确提示不兼容，不会静默恢复成残缺状态。
 

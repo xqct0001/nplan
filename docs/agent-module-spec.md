@@ -232,8 +232,9 @@ The CLI checks this consent before either model operation. Local providers skip
 the prompt. Interactive cloud use shows a relative-path preview, can re-curate
 after project-relative exclusions, and can remember the resulting scope.
 Non-interactive cloud use without saved consent or `--allow-cloud-context`
-returns exit code `2` before any provider request. Direct interactive text with
-an existing WorkPlan is treated as a revision; `/new` clears that state.
+returns exit code `2` before any provider request. Direct interactive text or a
+prompt supplied with `--resume` is treated as a revision when a WorkPlan exists;
+`/new` clears that state.
 
 ## OKF-Style Local Knowledge
 

@@ -329,6 +329,70 @@ test('direct text revises an existing WorkPlan and new clears revision state', a
   });
 });
 
+test('interactive initial prompt revises a resumed WorkPlan before model preparation', async () => {
+  await withLocalModelServer(async ({ configPath, cwd, env, seen }) => {
+    const first = await runCli(
+      ['--config-path', configPath],
+      '规划北京亲子游\n/退出\n',
+      env,
+      cwd
+    );
+    assert.equal(first.code, 0);
+    seen.length = 0;
+
+    const resumed = await runCli(
+      ['--config-path', configPath, '--resume', 'latest', '调整交通方式'],
+      '/退出\n',
+      env,
+      cwd
+    );
+
+    assert.equal(resumed.code, 0, resumed.stderr || resumed.stdout);
+    assert.equal(seen.length, 2);
+    const request = modelUserPrompt(seen[0].body);
+    assert.match(request, /Previous request:/);
+    assert.match(request, /Previous plan:/);
+    assert.match(request, /Revision:\n调整交通方式/);
+  });
+});
+
+test('print resume revises an existing WorkPlan while a new print stays fresh', async () => {
+  await withLocalModelServer(async ({ configPath, cwd, env, seen }) => {
+    const first = await runCli(
+      ['--config-path', configPath],
+      '规划北京亲子游\n/退出\n',
+      env,
+      cwd
+    );
+    assert.equal(first.code, 0);
+    seen.length = 0;
+
+    const resumed = await runCli(
+      ['--config-path', configPath, '-p', '--resume', 'latest', '补充预算上限'],
+      '',
+      env,
+      cwd
+    );
+    assert.equal(resumed.code, 0, resumed.stderr || resumed.stdout);
+    assert.equal(seen.length, 2);
+    const resumedRequest = modelUserPrompt(seen[0].body);
+    assert.match(resumedRequest, /Previous goal:/);
+    assert.match(resumedRequest, /Previous plan:/);
+    assert.match(resumedRequest, /Revision:\n补充预算上限/);
+
+    seen.length = 0;
+    const fresh = await runCli(
+      ['--config-path', configPath, '-p', '规划北京亲子游'],
+      '',
+      env,
+      cwd
+    );
+    assert.equal(fresh.code, 0);
+    assert.equal(seen.length, 2);
+    assert.equal(modelUserPrompt(seen[0].body), '规划北京亲子游');
+  });
+});
+
 test('CLI reports v1 sessions as explicitly incompatible', async () => {
   const cwd = await mkdtemp(join(tmpdir(), 'nplan-v1-cli-'));
   await mkdir(join(cwd, '.nplan', 'sessions'), { recursive: true });

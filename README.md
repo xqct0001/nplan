@@ -132,8 +132,8 @@ remain supported:
 ```
 
 `/步骤` and `/来源` are read-only views of the latest WorkPlan and its sources.
-Direct text after a WorkPlan, or `/revise <additional context>`, revises the
-latest plan; `/new` clears that state. `/export` is the only interactive command that writes
+Direct text after a WorkPlan, `/revise <additional context>`, or a prompt passed
+with `--resume` revises the latest plan; `/new` clears that state. `/export` is the only interactive command that writes
 a new planning artifact; without a path it writes `.nplan/exports/<plan-id>.md`,
 and with a path it writes the requested Markdown file. The export is an
 Obsidian-friendly WorkPlan, not an executed task.

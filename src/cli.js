@@ -251,7 +251,13 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
     }
     try {
       const baseContext = contextForSession(session);
-      const prepared = runtime.agent.prepare(prompt, baseContext);
+      const reviseExisting = Boolean(session?.last_result && session?.last_work_plan);
+      const effectivePrompt = effectivePlanningPrompt(prompt, {
+        lastResult: session?.last_result,
+        lastWorkPlan: session?.last_work_plan,
+        reviseExisting
+      });
+      const prepared = runtime.agent.prepare(effectivePrompt, baseContext);
       const authorization = await authorizePreparedContext({
         prepared,
         baseContext,
@@ -269,7 +275,12 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
         locale: parsed.locale
       });
       if (session) {
-        recordSessionTurn(session, { request: prompt, result, workPlan });
+        recordSessionTurn(session, {
+          request: prompt,
+          revision: reviseExisting ? prompt : '',
+          result,
+          workPlan
+        });
         await saveSession(process.cwd(), session);
       }
       streams.output.write(`${renderPrintResult(result, parsed.outputFormat, parsed.locale)}\n`);
@@ -486,10 +497,14 @@ async function runInteractive({
   };
 
   if (initialPrompt) {
-    await analyzeAndRender(initialPrompt, { state, streams });
+    await analyzeAndRender(initialPrompt, {
+      state,
+      streams,
+      reviseExisting: Boolean(state.lastResult && state.lastWorkPlan)
+    });
   }
 
-  rl.prompt();
+  if (!closed) rl.prompt();
   while (true) {
     const rawLine = await state.readLine();
     if (rawLine === null) break;
@@ -548,9 +563,12 @@ async function handleInteractiveLine(line, { state, streams }) {
     if (!state.lastResult) {
       streams.output.write('No previous plan yet; planning from this text.\n');
     }
-    const prompt = revisionPrompt(state.lastResult, revision);
     streams.output.write('revised plan:\n');
-    await analyzeAndRender(prompt, { state, streams });
+    await analyzeAndRender(revision, {
+      state,
+      streams,
+      reviseExisting: Boolean(state.lastResult && state.lastWorkPlan)
+    });
     return false;
   }
   if (slash.command === '/export') {
@@ -631,22 +649,27 @@ async function handleInteractiveLine(line, { state, streams }) {
     return false;
   }
 
-  if (!explicitPlan && state.lastWorkPlan && state.lastResult) {
-    prompt = revisionPrompt(state.lastResult, prompt);
-  }
-
-  await analyzeAndRender(prompt, { state, streams });
+  await analyzeAndRender(prompt, {
+    state,
+    streams,
+    reviseExisting: !explicitPlan && Boolean(state.lastWorkPlan && state.lastResult)
+  });
   return false;
 }
 
-async function analyzeAndRender(prompt, { state, streams }) {
+async function analyzeAndRender(prompt, { state, streams, reviseExisting = false }) {
   if (!state.runtime) {
     streams.output.write(`${setupRequiredMessage(state.runtimeError, state.locale)}\n`);
     return;
   }
   try {
+    const effectivePrompt = effectivePlanningPrompt(prompt, {
+      lastResult: state.lastResult,
+      lastWorkPlan: state.lastWorkPlan,
+      reviseExisting
+    });
     const baseContext = contextForSession(state.session);
-    const prepared = state.runtime.agent.prepare(prompt, baseContext);
+    const prepared = state.runtime.agent.prepare(effectivePrompt, baseContext);
     const authorization = await authorizePreparedContext({
       prepared,
       baseContext,
@@ -667,6 +690,7 @@ async function analyzeAndRender(prompt, { state, streams }) {
     state.requests += 1;
     recordSessionTurn(state.session, {
       request: prompt,
+      revision: reviseExisting ? prompt : '',
       result: state.lastResult,
       workPlan: state.lastWorkPlan
     });
@@ -929,6 +953,16 @@ function promptWithStdin(prompt, stdinText) {
   const trimmedStdin = stdinText.trim();
   if (trimmedPrompt && trimmedStdin) return `${trimmedPrompt}\n\nPiped input:\n${trimmedStdin}`;
   return trimmedPrompt || trimmedStdin;
+}
+
+function effectivePlanningPrompt(prompt, {
+  lastResult = null,
+  lastWorkPlan = null,
+  reviseExisting = false
+} = {}) {
+  const request = String(prompt || '').trim();
+  if (!reviseExisting || !lastResult || !lastWorkPlan) return request;
+  return revisionPrompt(lastResult, request);
 }
 
 function revisionPrompt(lastResult, revision) {
