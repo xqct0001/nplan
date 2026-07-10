@@ -10,6 +10,7 @@ import {
   parseConfigOverrides,
   resolveModelProvider
 } from '../src/model-config.js';
+import { OpenAICompatiblePlanningModel } from '../src/model-client.js';
 
 test('loads Codex-style model provider config from TOML', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'nplan-'));
@@ -69,6 +70,24 @@ test('supports CLI-style -c dotted overrides and built-in providers', () => {
   assert.equal(provider.apiKey, 'openai-key');
   assert.equal(provider.request_max_retries, 1);
   assert.equal(provider.timeout_ms, 7000);
+});
+
+test('remote base URL override discards inherited local classification', () => {
+  const config = loadModelConfig.sync({
+    env: {},
+    overrides: {
+      model: 'remote-model',
+      model_provider: 'ollama',
+      model_providers: {
+        ollama: { base_url: 'https://remote.example/v1' }
+      }
+    }
+  });
+  const provider = resolveModelProvider(config);
+  const model = new OpenAICompatiblePlanningModel({ config, fetchImpl: async () => {} });
+
+  assert.equal(provider.context_location, undefined);
+  assert.equal(model.requiresContextConsent, true);
 });
 
 test('built-in providers cover common local and Chinese OpenAI-compatible endpoints', () => {

@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 export const BUILTIN_MODEL_PROVIDERS = {
   openai: {
     name: 'OpenAI',
+    context_location: 'cloud',
     base_url: 'https://api.openai.com/v1',
     env_key: 'OPENAI_API_KEY',
     wire_api: 'responses',
@@ -15,6 +16,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   openrouter: {
     name: 'OpenRouter',
+    context_location: 'cloud',
     base_url: 'https://openrouter.ai/api/v1',
     env_key: 'OPENROUTER_API_KEY',
     wire_api: 'chat_completions',
@@ -26,6 +28,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   ollama: {
     name: 'Ollama',
+    context_location: 'local',
     base_url: 'http://localhost:11434/v1',
     wire_api: 'chat_completions',
     request_max_retries: 0,
@@ -34,6 +37,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   lmstudio: {
     name: 'LM Studio',
+    context_location: 'local',
     base_url: 'http://localhost:1234/v1',
     wire_api: 'chat_completions',
     request_max_retries: 0,
@@ -42,6 +46,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   vllm: {
     name: 'vLLM',
+    context_location: 'local',
     base_url: 'http://localhost:8000/v1',
     wire_api: 'chat_completions',
     request_max_retries: 0,
@@ -50,6 +55,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   llamacpp: {
     name: 'llama.cpp server',
+    context_location: 'local',
     base_url: 'http://localhost:8080/v1',
     wire_api: 'chat_completions',
     request_max_retries: 0,
@@ -58,6 +64,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   localai: {
     name: 'LocalAI',
+    context_location: 'local',
     base_url: 'http://localhost:8080/v1',
     wire_api: 'chat_completions',
     request_max_retries: 0,
@@ -66,6 +73,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   dashscope: {
     name: 'Alibaba Cloud DashScope',
+    context_location: 'cloud',
     base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     env_key: 'DASHSCOPE_API_KEY',
     wire_api: 'chat_completions',
@@ -77,6 +85,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   tongyi: {
     name: 'Tongyi Qianwen',
+    context_location: 'cloud',
     base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     env_key: 'DASHSCOPE_API_KEY',
     wire_api: 'chat_completions',
@@ -88,6 +97,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   qwen: {
     name: 'Qwen via DashScope',
+    context_location: 'cloud',
     base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     env_key: 'DASHSCOPE_API_KEY',
     wire_api: 'chat_completions',
@@ -99,6 +109,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   deepseek: {
     name: 'DeepSeek',
+    context_location: 'cloud',
     base_url: 'https://api.deepseek.com',
     env_key: 'DEEPSEEK_API_KEY',
     wire_api: 'chat_completions',
@@ -110,6 +121,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   moonshot: {
     name: 'Moonshot AI',
+    context_location: 'cloud',
     base_url: 'https://api.moonshot.cn/v1',
     env_key: 'MOONSHOT_API_KEY',
     wire_api: 'chat_completions',
@@ -121,6 +133,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   kimi: {
     name: 'Kimi via Moonshot AI',
+    context_location: 'cloud',
     base_url: 'https://api.moonshot.cn/v1',
     env_key: 'MOONSHOT_API_KEY',
     wire_api: 'chat_completions',
@@ -132,6 +145,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   zhipu: {
     name: 'Zhipu AI',
+    context_location: 'cloud',
     base_url: 'https://open.bigmodel.cn/api/paas/v4',
     env_key: 'ZHIPUAI_API_KEY',
     wire_api: 'chat_completions',
@@ -143,6 +157,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   bigmodel: {
     name: 'BigModel / Zhipu AI',
+    context_location: 'cloud',
     base_url: 'https://open.bigmodel.cn/api/paas/v4',
     env_key: 'ZHIPUAI_API_KEY',
     wire_api: 'chat_completions',
@@ -154,6 +169,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   glm: {
     name: 'GLM via Zhipu AI',
+    context_location: 'cloud',
     base_url: 'https://open.bigmodel.cn/api/paas/v4',
     env_key: 'ZHIPUAI_API_KEY',
     wire_api: 'chat_completions',
@@ -165,6 +181,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   qianfan: {
     name: 'Baidu Qianfan',
+    context_location: 'cloud',
     base_url: 'https://qianfan.baidubce.com/v2',
     env_key: 'QIANFAN_API_KEY',
     wire_api: 'chat_completions',
@@ -174,6 +191,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   wenxin: {
     name: 'Wenxin via Baidu Qianfan',
+    context_location: 'cloud',
     base_url: 'https://qianfan.baidubce.com/v2',
     env_key: 'QIANFAN_API_KEY',
     wire_api: 'chat_completions',
@@ -183,6 +201,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   volcengine_ark: {
     name: 'Volcengine Ark',
+    context_location: 'cloud',
     base_url: 'https://ark.cn-beijing.volces.com/api/v3',
     env_key: 'ARK_API_KEY',
     wire_api: 'chat_completions',
@@ -194,6 +213,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   doubao: {
     name: 'Doubao via Volcengine Ark',
+    context_location: 'cloud',
     base_url: 'https://ark.cn-beijing.volces.com/api/v3',
     env_key: 'ARK_API_KEY',
     wire_api: 'chat_completions',
@@ -205,6 +225,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   tencent_hunyuan: {
     name: 'Tencent Hunyuan',
+    context_location: 'cloud',
     base_url: 'https://api.hunyuan.cloud.tencent.com/v1',
     env_key: 'HUNYUAN_API_KEY',
     wire_api: 'chat_completions',
@@ -214,6 +235,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   hunyuan: {
     name: 'Hunyuan via Tencent',
+    context_location: 'cloud',
     base_url: 'https://api.hunyuan.cloud.tencent.com/v1',
     env_key: 'HUNYUAN_API_KEY',
     wire_api: 'chat_completions',
@@ -223,6 +245,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   siliconflow: {
     name: 'SiliconFlow',
+    context_location: 'cloud',
     base_url: 'https://api.siliconflow.cn/v1',
     env_key: 'SILICONFLOW_API_KEY',
     wire_api: 'chat_completions',
@@ -234,6 +257,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   minimax: {
     name: 'MiniMax',
+    context_location: 'cloud',
     base_url: 'https://api.minimax.chat/v1',
     env_key: 'MINIMAX_API_KEY',
     wire_api: 'chat_completions',
@@ -244,6 +268,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   baichuan: {
     name: 'Baichuan AI',
+    context_location: 'cloud',
     base_url: 'https://api.baichuan-ai.com/v1',
     env_key: 'BAICHUAN_API_KEY',
     wire_api: 'chat_completions',
@@ -254,6 +279,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   yi: {
     name: '01.AI Yi',
+    context_location: 'cloud',
     base_url: 'https://api.lingyiwanwu.com/v1',
     env_key: 'YI_API_KEY',
     wire_api: 'chat_completions',
@@ -264,6 +290,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   stepfun: {
     name: 'StepFun',
+    context_location: 'cloud',
     base_url: 'https://api.stepfun.com/v1',
     env_key: 'STEPFUN_API_KEY',
     wire_api: 'chat_completions',
@@ -274,6 +301,7 @@ export const BUILTIN_MODEL_PROVIDERS = {
   },
   modelscope: {
     name: 'ModelScope',
+    context_location: 'cloud',
     base_url: 'https://api-inference.modelscope.cn/v1',
     env_key: 'MODELSCOPE_API_KEY',
     wire_api: 'chat_completions',
@@ -385,9 +413,25 @@ function configFromEnv(env) {
 
 function mergeConfig(...configs) {
   const output = {};
-  for (const config of configs) deepMerge(output, config || {});
+  for (const config of configs) {
+    const source = config || {};
+    const urlOverrides = providerUrlOverridesWithoutLocation(output, source);
+    deepMerge(output, source);
+    for (const providerId of urlOverrides) delete output.model_providers[providerId].context_location;
+  }
   output.env = configs.find((config) => config?.env)?.env || process.env;
   return output;
+}
+
+function providerUrlOverridesWithoutLocation(target, source) {
+  const providerIds = [];
+  for (const [providerId, provider] of Object.entries(source.model_providers || {})) {
+    const inherited = target.model_providers?.[providerId];
+    if (!plainObject(provider) || !plainObject(inherited)) continue;
+    if (!Object.hasOwn(provider, 'base_url') || Object.hasOwn(provider, 'context_location')) continue;
+    if (provider.base_url !== inherited.base_url) providerIds.push(providerId);
+  }
+  return providerIds;
 }
 
 function deepMerge(target, source) {

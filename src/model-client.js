@@ -1,15 +1,34 @@
-import { TASKSPEC_SCHEMA } from './schemas.js';
+import { DEFAULT_PLANNER_POLICY, TASKPLAN_SCHEMA, TASKSPEC_SCHEMA } from './schemas.js';
 import { resolveModelProvider } from './model-config.js';
 
-export class OpenAICompatibleTaskModel {
+export class OpenAICompatiblePlanningModel {
   constructor({ config, fetchImpl = globalThis.fetch } = {}) {
     this.config = config;
     this.fetchImpl = fetchImpl;
+    this.provider = resolveModelProvider(config);
+  }
+
+  get requiresContextConsent() {
+    return !isLocalModelProvider(this.provider);
   }
 
   understandTask({ request, context = {} }) {
     return callModelForTaskSpec({ request, context, config: this.config, fetchImpl: this.fetchImpl });
   }
+
+  planTask({ taskspec, context = {} }) {
+    return callModelForTaskPlan({ taskspec, context, config: this.config, fetchImpl: this.fetchImpl });
+  }
+}
+
+// Transitional Task 2 bridge for existing CLI/index imports; remove when Task 3 switches callers.
+export const OpenAICompatibleTaskModel = OpenAICompatiblePlanningModel;
+
+export function isLocalModelProvider(provider) {
+  if (provider.context_location === 'local') return true;
+  if (provider.context_location === 'cloud') return false;
+  const host = new URL(provider.base_url).hostname.toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
 }
 
 export function modelSpecPrompt(request, context = {}) {
@@ -54,16 +73,85 @@ export function modelSpecPrompt(request, context = {}) {
   };
 }
 
+export function modelPlanPrompt(taskspec, context = {}) {
+  return {
+    system: [
+      'You are a Task Planning extractor.',
+      'Return only one JSON object for a bounded TaskPlan DAG draft.',
+      'Do not execute tasks or claim that any task has been completed.',
+      '每个任务标题和目标必须描述可核验的具体动作，并遵循 TaskSpec.constraints.language。',
+      '中文计划使用明确的中文动词和具体动作；不要使用 Define、Prepare、Handle 等模糊占位词。',
+      'Keep every dependency within the returned task IDs and keep the graph acyclic.',
+      'Give every task explicit inputs, outputs, acceptance checks, complexity, risk, model tier, and pending state.',
+      'Respect planner_policy.max_tasks and use supplied context only as evidence.'
+    ].join('\n'),
+    user: JSON.stringify(
+      {
+        taskspec,
+        context,
+        planner_policy: { ...DEFAULT_PLANNER_POLICY },
+        required_shape: {
+          version: '1.0',
+          plan_style: 'dag',
+          global_goal: 'string',
+          global_acceptance: ['string'],
+          tasks: [
+            {
+              id: 'string',
+              title: 'string',
+              goal: 'string',
+              inputs: ['string'],
+              outputs: ['string'],
+              dependencies: ['task id'],
+              parallel_group: 'string',
+              acceptance: ['string'],
+              complexity: 'low|medium|high',
+              risk: 'low|medium|high',
+              model_tier: 'string',
+              state: 'pending'
+            }
+          ],
+          replan_policy: {
+            trigger_on: ['schema_invalid|cyclic_dependency|blocking_info_found|task_too_coarse'],
+            max_replans: 'integer'
+          }
+        }
+      },
+      null,
+      2
+    )
+  };
+}
+
 export async function callModelForTaskSpec({ request, context = {}, config, fetchImpl = globalThis.fetch }) {
+  return callModel({
+    config,
+    fetchImpl,
+    prompt: modelSpecPrompt(request, context),
+    schema: TASKSPEC_SCHEMA,
+    schemaName: 'TaskSpecDraft'
+  });
+}
+
+export async function callModelForTaskPlan({ taskspec, context = {}, config, fetchImpl = globalThis.fetch }) {
+  return callModel({
+    config,
+    fetchImpl,
+    prompt: modelPlanPrompt(taskspec, context),
+    schema: TASKPLAN_SCHEMA,
+    schemaName: 'TaskPlanDraft'
+  });
+}
+
+async function callModel({ config, fetchImpl, prompt, schema, schemaName }) {
   if (!config?.model) throw new Error('model is not configured');
   if (typeof fetchImpl !== 'function') throw new Error('fetch is not available in this Node.js runtime');
   const provider = resolveModelProvider(config);
-  const prompt = modelSpecPrompt(request, context);
   const response = await callWithRetries({
     fetchImpl,
     provider,
     url: endpointUrl(provider),
-    options: requestOptions({ config, provider, prompt })
+    makeOptions: () => requestOptions({ config, provider, prompt, schema, schemaName })
   });
   return parseModelPayload(await response.text());
 }
@@ -90,7 +178,7 @@ function endpointUrl(provider) {
   return url.toString();
 }
 
-function requestOptions({ config, provider, prompt }) {
+function requestOptions({ config, provider, prompt, schema, schemaName }) {
   const headers = {
     'Content-Type': 'application/json',
     ...(provider.http_headers || {})
@@ -100,11 +188,11 @@ function requestOptions({ config, provider, prompt }) {
     method: 'POST',
     headers,
     signal: AbortSignal.timeout(Number(provider.timeout_ms || 60000)),
-    body: JSON.stringify(requestBody({ config, provider, prompt }))
+    body: JSON.stringify(requestBody({ config, provider, prompt, schema, schemaName }))
   };
 }
 
-function requestBody({ config, provider, prompt }) {
+function requestBody({ config, provider, prompt, schema, schemaName }) {
   if (provider.wire_api === 'responses') {
     return {
       model: config.model,
@@ -117,8 +205,8 @@ function requestBody({ config, provider, prompt }) {
       text: {
         format: {
           type: 'json_schema',
-          name: 'TaskSpecDraft',
-          schema: TASKSPEC_SCHEMA,
+          name: schemaName,
+          schema,
           strict: false
         }
       }
@@ -144,14 +232,15 @@ function chatResponseFormat(provider) {
   return { response_format: { type: provider.response_format || 'json_object' } };
 }
 
-async function callWithRetries({ fetchImpl, provider, url, options }) {
+async function callWithRetries({ fetchImpl, provider, url, makeOptions }) {
   const retries = Number(provider.request_max_retries || 0);
   let lastError;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
-      const response = await fetchImpl(url, options);
+      const response = await fetchImpl(url, makeOptions());
       if (response.ok) return response;
       lastError = new Error(`model provider returned HTTP ${response.status}`);
+      lastError.status = response.status;
     } catch (error) {
       lastError = error;
     }

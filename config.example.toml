@@ -3,6 +3,9 @@
 # This follows the same shape as Codex-style model provider config:
 # a default model, a selected provider, and provider-specific HTTP settings.
 # `models_url` is optional and is used by `nplan setup` to fetch model choices.
+# `context_location` is `local` or `cloud`; custom providers may omit it and
+# NPlan will classify loopback base URLs as local. A built-in base URL override
+# without this field also uses that URL-based fallback.
 
 model = "gpt-5.5"
 model_provider = "openai"
@@ -11,6 +14,7 @@ model_max_output_tokens = 2000
 
 [model_providers.openai]
 name = "OpenAI"
+context_location = "cloud"
 base_url = "https://api.openai.com/v1"
 env_key = "OPENAI_API_KEY"
 wire_api = "responses"
@@ -20,6 +24,7 @@ timeout_ms = 60000
 
 [model_providers.openrouter]
 name = "OpenRouter"
+context_location = "cloud"
 base_url = "https://openrouter.ai/api/v1"
 env_key = "OPENROUTER_API_KEY"
 wire_api = "chat_completions"
@@ -28,6 +33,7 @@ timeout_ms = 60000
 
 [model_providers.ollama]
 name = "Ollama"
+context_location = "local"
 base_url = "http://localhost:11434/v1"
 wire_api = "chat_completions"
 request_max_retries = 0
@@ -35,6 +41,7 @@ timeout_ms = 120000
 
 [model_providers.lmstudio]
 name = "LM Studio"
+context_location = "local"
 base_url = "http://localhost:1234/v1"
 wire_api = "chat_completions"
 request_max_retries = 0
@@ -42,6 +49,7 @@ timeout_ms = 120000
 
 [model_providers.vllm]
 name = "vLLM"
+context_location = "local"
 base_url = "http://localhost:8000/v1"
 wire_api = "chat_completions"
 request_max_retries = 0
@@ -49,6 +57,7 @@ timeout_ms = 120000
 
 [model_providers.llamacpp]
 name = "llama.cpp server"
+context_location = "local"
 base_url = "http://localhost:8080/v1"
 wire_api = "chat_completions"
 request_max_retries = 0
@@ -56,6 +65,7 @@ timeout_ms = 120000
 
 [model_providers.localai]
 name = "LocalAI"
+context_location = "local"
 base_url = "http://localhost:8080/v1"
 wire_api = "chat_completions"
 request_max_retries = 0
@@ -63,6 +73,7 @@ timeout_ms = 120000
 
 [model_providers.dashscope]
 name = "DashScope"
+context_location = "cloud"
 base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 env_key = "DASHSCOPE_API_KEY"
 wire_api = "chat_completions"
@@ -71,6 +82,7 @@ timeout_ms = 60000
 
 [model_providers.tongyi]
 name = "Tongyi Qianwen"
+context_location = "cloud"
 base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 env_key = "DASHSCOPE_API_KEY"
 wire_api = "chat_completions"
@@ -79,6 +91,7 @@ timeout_ms = 60000
 
 [model_providers.qwen]
 name = "Qwen via DashScope"
+context_location = "cloud"
 base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 env_key = "DASHSCOPE_API_KEY"
 wire_api = "chat_completions"
@@ -87,6 +100,7 @@ timeout_ms = 60000
 
 [model_providers.deepseek]
 name = "DeepSeek"
+context_location = "cloud"
 base_url = "https://api.deepseek.com"
 env_key = "DEEPSEEK_API_KEY"
 wire_api = "chat_completions"
@@ -96,6 +110,7 @@ timeout_ms = 60000
 
 [model_providers.moonshot]
 name = "Moonshot AI"
+context_location = "cloud"
 base_url = "https://api.moonshot.cn/v1"
 env_key = "MOONSHOT_API_KEY"
 wire_api = "chat_completions"
@@ -104,6 +119,7 @@ timeout_ms = 60000
 
 [model_providers.kimi]
 name = "Kimi via Moonshot AI"
+context_location = "cloud"
 base_url = "https://api.moonshot.cn/v1"
 env_key = "MOONSHOT_API_KEY"
 wire_api = "chat_completions"
@@ -112,6 +128,7 @@ timeout_ms = 60000
 
 [model_providers.zhipu]
 name = "Zhipu AI"
+context_location = "cloud"
 base_url = "https://open.bigmodel.cn/api/paas/v4"
 env_key = "ZHIPUAI_API_KEY"
 wire_api = "chat_completions"
@@ -120,6 +137,7 @@ timeout_ms = 60000
 
 [model_providers.bigmodel]
 name = "BigModel / Zhipu AI"
+context_location = "cloud"
 base_url = "https://open.bigmodel.cn/api/paas/v4"
 env_key = "ZHIPUAI_API_KEY"
 wire_api = "chat_completions"
@@ -128,6 +146,7 @@ timeout_ms = 60000
 
 [model_providers.glm]
 name = "GLM via Zhipu AI"
+context_location = "cloud"
 base_url = "https://open.bigmodel.cn/api/paas/v4"
 env_key = "ZHIPUAI_API_KEY"
 wire_api = "chat_completions"
@@ -136,6 +155,7 @@ timeout_ms = 60000
 
 [model_providers.qianfan]
 name = "Baidu Qianfan"
+context_location = "cloud"
 base_url = "https://qianfan.baidubce.com/v2"
 env_key = "QIANFAN_API_KEY"
 wire_api = "chat_completions"
@@ -144,6 +164,7 @@ timeout_ms = 60000
 
 [model_providers.wenxin]
 name = "Wenxin via Baidu Qianfan"
+context_location = "cloud"
 base_url = "https://qianfan.baidubce.com/v2"
 env_key = "QIANFAN_API_KEY"
 wire_api = "chat_completions"
@@ -152,6 +173,7 @@ timeout_ms = 60000
 
 [model_providers.volcengine_ark]
 name = "Volcengine Ark"
+context_location = "cloud"
 base_url = "https://ark.cn-beijing.volces.com/api/v3"
 env_key = "ARK_API_KEY"
 wire_api = "chat_completions"
@@ -160,6 +182,7 @@ timeout_ms = 60000
 
 [model_providers.doubao]
 name = "Doubao via Volcengine Ark"
+context_location = "cloud"
 base_url = "https://ark.cn-beijing.volces.com/api/v3"
 env_key = "ARK_API_KEY"
 wire_api = "chat_completions"
@@ -168,6 +191,7 @@ timeout_ms = 60000
 
 [model_providers.tencent_hunyuan]
 name = "Tencent Hunyuan"
+context_location = "cloud"
 base_url = "https://api.hunyuan.cloud.tencent.com/v1"
 env_key = "HUNYUAN_API_KEY"
 wire_api = "chat_completions"
@@ -176,6 +200,7 @@ timeout_ms = 60000
 
 [model_providers.hunyuan]
 name = "Hunyuan via Tencent"
+context_location = "cloud"
 base_url = "https://api.hunyuan.cloud.tencent.com/v1"
 env_key = "HUNYUAN_API_KEY"
 wire_api = "chat_completions"
@@ -184,6 +209,7 @@ timeout_ms = 60000
 
 [model_providers.siliconflow]
 name = "SiliconFlow"
+context_location = "cloud"
 base_url = "https://api.siliconflow.cn/v1"
 env_key = "SILICONFLOW_API_KEY"
 wire_api = "chat_completions"
@@ -192,6 +218,7 @@ timeout_ms = 60000
 
 [model_providers.minimax]
 name = "MiniMax"
+context_location = "cloud"
 base_url = "https://api.minimax.chat/v1"
 env_key = "MINIMAX_API_KEY"
 wire_api = "chat_completions"
@@ -201,6 +228,7 @@ timeout_ms = 60000
 
 [model_providers.baichuan]
 name = "Baichuan AI"
+context_location = "cloud"
 base_url = "https://api.baichuan-ai.com/v1"
 env_key = "BAICHUAN_API_KEY"
 wire_api = "chat_completions"
@@ -210,6 +238,7 @@ timeout_ms = 60000
 
 [model_providers.yi]
 name = "01.AI Yi"
+context_location = "cloud"
 base_url = "https://api.lingyiwanwu.com/v1"
 env_key = "YI_API_KEY"
 wire_api = "chat_completions"
@@ -219,6 +248,7 @@ timeout_ms = 60000
 
 [model_providers.stepfun]
 name = "StepFun"
+context_location = "cloud"
 base_url = "https://api.stepfun.com/v1"
 env_key = "STEPFUN_API_KEY"
 wire_api = "chat_completions"
@@ -228,6 +258,7 @@ timeout_ms = 60000
 
 [model_providers.modelscope]
 name = "ModelScope"
+context_location = "cloud"
 base_url = "https://api-inference.modelscope.cn/v1"
 env_key = "MODELSCOPE_API_KEY"
 wire_api = "chat_completions"

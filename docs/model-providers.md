@@ -19,6 +19,14 @@ Configuration is merged in this order:
 
 ## Built-In Providers
 
+Built-ins declare `context_location = "local"` for Ollama, LM Studio, vLLM,
+llama.cpp, and LocalAI, and `context_location = "cloud"` for every remote
+provider. For custom providers, the explicit field is authoritative. If it is
+omitted, only `localhost`, `127.0.0.1`, and `::1` base URLs are classified as
+local; all other hosts are classified as cloud. Changing a built-in provider's
+`base_url` without also setting `context_location` discards the inherited
+classification and uses the same URL fallback.
+
 - `openai`: `https://api.openai.com/v1`, `OPENAI_API_KEY`, `responses`
 - `openrouter`: `https://openrouter.ai/api/v1`, `OPENROUTER_API_KEY`, `chat_completions`
 - `ollama`: `http://localhost:11434/v1`, `chat_completions`
@@ -86,6 +94,7 @@ model_max_output_tokens = 2000
 
 [model_providers.dashscope]
 name = "DashScope"
+context_location = "cloud"
 base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 env_key = "DASHSCOPE_API_KEY"
 wire_api = "chat_completions"
@@ -102,6 +111,7 @@ parameters:
 ```toml
 [model_providers.minimax]
 name = "MiniMax"
+context_location = "cloud"
 base_url = "https://api.minimax.chat/v1"
 env_key = "MINIMAX_API_KEY"
 wire_api = "chat_completions"
