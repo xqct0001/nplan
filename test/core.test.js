@@ -11,7 +11,6 @@ import {
   validateTaskPlan,
   validateTaskSpec
 } from '../src/index.js';
-import { planFromTaskSpec } from '../src/planning.js';
 import { modelTask, readyTaskSpec } from './fixtures.js';
 
 test('schema artifacts expose required fields', () => {
@@ -104,34 +103,6 @@ test('validator rejects Chinese generic deliverable wrappers', () => {
   const report = validateTaskPlan(taskplan);
   assert.equal(report.valid, false);
   assert.ok(report.policy_errors.includes('task_too_coarse:T1'));
-});
-
-test('legacy internal planner remains valid during model-plan transition', () => {
-  const taskspec = readyTaskSpec();
-  const taskplan = planFromTaskSpec({
-    taskspec,
-    planner_policy: {
-      max_depth: 3,
-      max_tasks: 12,
-      allow_parallel_groups: true,
-      require_acceptance_per_task: true,
-      prefer_atomic_tasks: true
-    }
-  });
-
-  assert.deepEqual(taskplan.tasks.map((task) => task.title), [
-    'Prepare 三日行程',
-    'Prepare 预算表'
-  ]);
-  assert.equal(validateTaskPlan(taskplan).valid, true);
-
-  const groupedTaskplan = planFromTaskSpec({
-    taskspec: readyTaskSpec({
-      deliverables: [{ name: 'TaskSpec artifacts', format: 'json', required: true }]
-    })
-  });
-  assert.deepEqual(groupedTaskplan.tasks.map((task) => task.title), ['Prepare TaskSpec artifacts']);
-  assert.equal(validateTaskPlan(groupedTaskplan).valid, true);
 });
 
 test('blocking missing information cannot be marked ready', () => {

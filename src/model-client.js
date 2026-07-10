@@ -21,9 +21,6 @@ export class OpenAICompatiblePlanningModel {
   }
 }
 
-// Transitional Task 2 bridge for existing CLI/index imports; remove when Task 3 switches callers.
-export const OpenAICompatibleTaskModel = OpenAICompatiblePlanningModel;
-
 export function isLocalModelProvider(provider) {
   if (provider.context_location === 'local') return true;
   if (provider.context_location === 'cloud') return false;

@@ -7,7 +7,7 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { LocalPlanningAgent } from './agent.js';
-import { OpenAICompatibleTaskModel } from './model-client.js';
+import { OpenAICompatiblePlanningModel } from './model-client.js';
 import { loadModelConfig, parseConfigOverrides } from './model-config.js';
 import { initHint, renderProviderList, writeProjectModelConfig } from './model-init.js';
 import {
@@ -559,7 +559,7 @@ function makeRuntime(parsed) {
   }
   return {
     agent: new LocalPlanningAgent({
-      modelClient: new OpenAICompatibleTaskModel({ config })
+      modelClient: new OpenAICompatiblePlanningModel({ config })
     }),
     config
   };
@@ -615,7 +615,7 @@ function handleModelCommand(arg, state) {
   if (!state.runtime) return setupRequiredMessage(state.runtimeError);
   state.runtime.config = { ...state.runtime.config, model: nextModel };
   state.runtime.agent = new LocalPlanningAgent({
-    modelClient: new OpenAICompatibleTaskModel({ config: state.runtime.config })
+    modelClient: new OpenAICompatiblePlanningModel({ config: state.runtime.config })
   });
   return `model: ${state.runtime.config.model_provider}/${state.runtime.config.model}`;
 }

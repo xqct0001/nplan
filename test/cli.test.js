@@ -17,7 +17,7 @@ const NODE = process.execPath;
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
 
 test('print mode returns one JSON result and exits', async () => {
-  await withModelServer(async ({ configPath, env }) => {
+  await withModelServer(async ({ configPath, env, seen }) => {
     const result = await runCli(
       ['--config-path', configPath, '-p', 'implement TaskSpec schema and DAG verifier'],
       '',
@@ -29,6 +29,7 @@ test('print mode returns one JSON result and exits', async () => {
     assert.equal(payload.status, 'planned');
     assert.equal(payload.taskspec.provenance.model_used, true);
     assert.equal(payload.taskplan_report.valid, true);
+    assert.equal(seen.length, 2);
     assert.equal(result.stderr, '');
   });
 });
@@ -459,7 +460,7 @@ test('interactive session supports Claude-like session commands and planning bou
     assert.match(stdout, /context: sources=/);
     assert.match(stdout, /sources:/);
     assert.match(stdout, /todo:/);
-    assert.match(stdout, /- \[ \] T1 Prepare TaskSpec artifacts/);
+    assert.match(stdout, /- \[ \] T1 Produce validated planning deliverables/);
     assert.match(stdout, /revised plan:/);
     assert.match(stdout, /exported: \.nplan\/exports\//);
     assert.match(stdout, /exported: docs\/plans\/cli-pr-plan\.md/);
@@ -694,30 +695,34 @@ test('print mode can use configured OpenAI-compatible model provider for Chinese
   const seen = [];
   const server = createServer(async (request, response) => {
     const body = await readRequest(request);
-    seen.push({ url: request.url, headers: request.headers, body: JSON.parse(body) });
+    const parsedBody = JSON.parse(body);
+    seen.push({ url: request.url, headers: request.headers, body: parsedBody });
+    const draft = isPlanningRequest(parsedBody)
+      ? taskPlanDraftFor(['File scanner', 'Classification rules', 'Markdown report'])
+      : {
+          inferred_goal: 'Design a local file organizer that scans files, classifies files, and writes a Markdown report',
+          task_type: 'design',
+          deliverables: [
+            { name: 'File scanner', format: 'json', required: true },
+            { name: 'Classification rules', format: 'markdown', required: true },
+            { name: 'Markdown report', format: 'markdown', required: true }
+          ],
+          missing_information: { blocking: [], non_blocking: [] },
+          assumptions: ['Planning only; execution is outside this module'],
+          ambiguities: [],
+          success_criteria: [
+            'file scanning is represented',
+            'classification is represented',
+            'markdown report is represented'
+          ]
+        };
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(
       JSON.stringify({
         choices: [
           {
             message: {
-              content: JSON.stringify({
-                inferred_goal: 'Design a local file organizer that scans files, classifies files, and writes a Markdown report',
-                task_type: 'design',
-                deliverables: [
-                  { name: 'File scanner', format: 'json', required: true },
-                  { name: 'Classification rules', format: 'markdown', required: true },
-                  { name: 'Markdown report', format: 'markdown', required: true }
-                ],
-                missing_information: { blocking: [], non_blocking: [] },
-                assumptions: ['Planning only; execution is outside this module'],
-                ambiguities: [],
-                success_criteria: [
-                  'file scanning is represented',
-                  'classification is represented',
-                  'markdown report is represented'
-                ]
-              })
+              content: JSON.stringify(draft)
             }
           }
         ]
@@ -753,6 +758,7 @@ test('print mode can use configured OpenAI-compatible model provider for Chinese
   assert.equal(payload.taskspec.provenance.model_used, true);
   assert.equal(payload.taskspec.surface_request, '帮我设计一个本地文件整理工具，可以扫描文件、分类、输出报告、md文件');
   assert.equal(payload.taskplan_report.valid, true);
+  assert.equal(seen.length, 2);
   assert.equal(seen[0].url, '/v1/chat/completions');
   assert.equal(seen[0].headers.authorization, 'Bearer secret');
 
@@ -779,11 +785,15 @@ async function runCli(args, stdin = '', env = {}, cwd = process.cwd()) {
   return { code, stdout, stderr };
 }
 
-async function withModelServer(fn, draft = defaultTaskSpecDraft()) {
+async function withModelServer(fn, taskSpecDraft = defaultTaskSpecDraft()) {
   const seen = [];
   const server = createServer(async (request, response) => {
     const body = await readRequest(request);
-    seen.push({ url: request.url, headers: request.headers, body: JSON.parse(body) });
+    const parsedBody = JSON.parse(body);
+    seen.push({ url: request.url, headers: request.headers, body: parsedBody });
+    const draft = isPlanningRequest(parsedBody)
+      ? taskPlanDraftFor(taskSpecDraft.deliverables.map((item) => item.name))
+      : taskSpecDraft;
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(
       JSON.stringify({
@@ -841,6 +851,33 @@ function defaultTaskSpecDraft() {
     quality_bar: ['deliverables are explicit'],
     risk_level: 'low'
   };
+}
+
+function taskPlanDraftFor(outputs) {
+  return {
+    global_goal: 'Produce the requested planning deliverables',
+    global_acceptance: outputs.map((output) => `${output} is represented`),
+    tasks: [
+      {
+        id: 'T1',
+        title: 'Produce validated planning deliverables',
+        goal: 'Create reviewable outputs that cover every required deliverable',
+        inputs: ['validated TaskSpec'],
+        outputs,
+        dependencies: [],
+        parallel_group: 'G1',
+        acceptance: outputs.map((output) => `${output} has explicit acceptance checks`),
+        complexity: 'medium',
+        risk: 'low',
+        model_tier: 'strong',
+        state: 'pending'
+      }
+    ]
+  };
+}
+
+function isPlanningRequest(body) {
+  return body?.messages?.[0]?.content?.includes('Task Planning');
 }
 
 function readRequest(request) {

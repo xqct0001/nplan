@@ -1,4 +1,4 @@
-import { buildPlannerInput, planFromTaskSpec } from './planning.js';
+import { composeTaskPlanFromModel } from './planning.js';
 import { curateContext } from './context-curator.js';
 import { composeTaskSpecFromModel, stripPromptArtifacts } from './understanding.js';
 import { validateTaskPlan, validateTaskSpec } from './validation.js';
@@ -15,36 +15,58 @@ export class LocalPlanningAgent {
     throw new Error(MODEL_REQUIRED_MESSAGE);
   }
 
-  async analyzeAsync(surfaceRequest, context = {}) {
+  prepare(surfaceRequest, context = {}) {
     const request = stripPromptArtifacts(surfaceRequest);
+    return { request, context: curateContext(request, context) };
+  }
+
+  async analyzeAsync(surfaceRequest, context = {}) {
+    const prepared = this.prepare(surfaceRequest, context);
+    return this.analyzePreparedAsync(prepared, {
+      cloudContextAuthorized: context.cloud_context_authorized === true
+    });
+  }
+
+  async analyzePreparedAsync(prepared, { cloudContextAuthorized = false } = {}) {
     if (!this.modelClient) throw new Error(MODEL_REQUIRED_MESSAGE);
-    const curatedContext = curateContext(request, context);
-    const draft = await this.modelClient.understandTask({ request, context: curatedContext });
-    return this.#planFromTaskSpec(composeTaskSpecFromModel(request, draft, curatedContext));
-  }
-
-  #planFromTaskSpec(taskspec) {
+    if (this.modelClient.requiresContextConsent && !cloudContextAuthorized) {
+      const error = new Error('cloud_context_consent_required');
+      error.code = 'cloud_context_consent_required';
+      error.context_report = prepared.context.context_report;
+      throw error;
+    }
+    const draft = await this.modelClient.understandTask(prepared);
+    const taskspec = composeTaskSpecFromModel(prepared.request, draft, prepared.context);
     const taskspecReport = validateTaskSpec(taskspec);
-    const result = {
-      status: 'needs_clarification',
-      pipeline_steps: ['understanding', 'taskspec_validation'],
+    if (!taskspecReport.ready_for_planning) return clarificationResult(taskspec, taskspecReport);
+    const taskDraft = await this.modelClient.planTask({
       taskspec,
-      taskspec_report: taskspecReport,
-      clarification_questions: taskspec.clarification?.questions || []
-    };
-
-    if (!taskspecReport.ready_for_planning) return result;
-
-    const plannerInput = buildPlannerInput(taskspec);
-    const taskplan = planFromTaskSpec(plannerInput);
+      context: prepared.context.context_pack
+    });
+    const taskplan = composeTaskPlanFromModel(taskspec, taskDraft);
     const taskplanReport = validateTaskPlan(taskplan);
-    return {
-      ...result,
-      status: taskplanReport.valid ? 'planned' : 'plan_invalid',
-      pipeline_steps: ['understanding', 'taskspec_validation', 'planning', 'taskplan_validation'],
-      planner_input: plannerInput,
-      taskplan,
-      taskplan_report: taskplanReport
-    };
+    return plannedResult(taskspec, taskspecReport, taskplan, taskplanReport);
   }
+}
+
+function clarificationResult(taskspec, taskspecReport) {
+  return {
+    status: 'needs_clarification',
+    pipeline_steps: ['understanding', 'taskspec_validation'],
+    taskspec,
+    taskspec_report: taskspecReport,
+    clarification_questions: taskspec.clarification?.questions || []
+  };
+}
+
+function plannedResult(taskspec, taskspecReport, taskplan, taskplanReport) {
+  return {
+    status: taskplanReport.valid ? 'planned' : 'plan_invalid',
+    pipeline_steps: ['understanding', 'taskspec_validation', 'planning', 'taskplan_validation'],
+    taskspec,
+    taskspec_report: taskspecReport,
+    clarification_questions: taskspec.clarification?.questions || [],
+    taskplan,
+    taskplan_report: taskplanReport
+  };
 }

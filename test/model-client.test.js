@@ -3,7 +3,6 @@ import { test } from 'node:test';
 
 import {
   OpenAICompatiblePlanningModel,
-  OpenAICompatibleTaskModel,
   callModelForTaskPlan,
   callModelForTaskSpec,
   extractJsonObject,
@@ -79,10 +78,6 @@ test('planning model exposes separate understandTask and planTask operations', a
   assert.match(seen[0].body.messages[0].content, /Task Understanding/);
   assert.match(seen[1].body.messages[0].content, /Task Planning/);
   assert.equal(model.requiresContextConsent, false);
-});
-
-test('legacy task model name is a transitional alias of the planning model', () => {
-  assert.equal(OpenAICompatibleTaskModel, OpenAICompatiblePlanningModel);
 });
 
 test('local provider detection accepts loopback URLs only', () => {

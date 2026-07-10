@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { LocalPlanningAgent } from '../src/index.js';
+import { taskPlanDraft, taskSpecDraft, vagueTaskSpecDraft } from './fixtures.js';
 
 test('async agent uses model understanding for Chinese file organizer request', async () => {
   const modelClient = {
@@ -43,6 +44,29 @@ test('async agent uses model understanding for Chinese file organizer request', 
         risk_level: 'low',
         context_requirements: ['local_documents']
       };
+    },
+    async planTask() {
+      return taskPlanDraft({
+        tasks: [
+          taskPlanDraft().tasks[0],
+          {
+            ...taskPlanDraft().tasks[0],
+            id: 'T2',
+            title: 'Create the classification plan',
+            goal: 'Describe reviewable file classification rules',
+            outputs: ['Classification plan'],
+            parallel_group: 'G2'
+          },
+          {
+            ...taskPlanDraft().tasks[0],
+            id: 'T3',
+            title: 'Specify the Markdown report',
+            goal: 'Define the report contents and checks',
+            outputs: ['File scanner', 'Markdown report'],
+            parallel_group: 'G3'
+          }
+        ]
+      });
     }
   };
 
@@ -83,4 +107,89 @@ test('async agent does not fall back when model is unavailable', async () => {
     () => new LocalPlanningAgent({ modelClient }).analyzeAsync('help'),
     /model unavailable/
   );
+});
+
+test('ready request calls understanding then planning exactly once', async () => {
+  const calls = [];
+  const modelClient = {
+    requiresContextConsent: false,
+    async understandTask() {
+      calls.push('understand');
+      return taskSpecDraft();
+    },
+    async planTask() {
+      calls.push('plan');
+      return taskPlanDraft();
+    }
+  };
+
+  const result = await new LocalPlanningAgent({ modelClient }).analyzeAsync('Plan a Beijing family trip');
+
+  assert.deepEqual(calls, ['understand', 'plan']);
+  assert.equal(result.status, 'planned');
+  assert.equal(result.taskplan.tasks[0].title, taskPlanDraft().tasks[0].title);
+});
+
+test('clarification result does not call TaskPlan model', async () => {
+  let planCalls = 0;
+  const modelClient = {
+    requiresContextConsent: false,
+    async understandTask() {
+      return vagueTaskSpecDraft();
+    },
+    async planTask() {
+      planCalls += 1;
+      return taskPlanDraft();
+    }
+  };
+
+  const result = await new LocalPlanningAgent({ modelClient }).analyzeAsync('help');
+
+  assert.equal(result.status, 'needs_clarification');
+  assert.equal(planCalls, 0);
+});
+
+test('cloud model cannot run prepared context without authorization', async () => {
+  let calls = 0;
+  const agent = new LocalPlanningAgent({
+    modelClient: {
+      requiresContextConsent: true,
+      async understandTask() {
+        calls += 1;
+        return taskSpecDraft();
+      },
+      async planTask() {
+        calls += 1;
+        return taskPlanDraft();
+      }
+    }
+  });
+
+  const prepared = agent.prepare('Plan a Beijing family trip');
+
+  await assert.rejects(
+    () => agent.analyzePreparedAsync(prepared),
+    /cloud_context_consent_required/
+  );
+  assert.equal(calls, 0);
+});
+
+test('invalid model TaskPlan returns plan_invalid without a third call', async () => {
+  let calls = 0;
+  const modelClient = {
+    requiresContextConsent: false,
+    async understandTask() {
+      calls += 1;
+      return taskSpecDraft();
+    },
+    async planTask() {
+      calls += 1;
+      return { tasks: [] };
+    }
+  };
+
+  const result = await new LocalPlanningAgent({ modelClient }).analyzeAsync('Plan a Beijing family trip');
+
+  assert.equal(result.status, 'plan_invalid');
+  assert.equal(calls, 2);
 });

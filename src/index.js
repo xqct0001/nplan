@@ -3,7 +3,11 @@ export { curateContext } from './context-curator.js';
 export { collectContext } from './context.js';
 export { detectRequestConflicts } from './conflicts.js';
 export { buildPlannerInput, composeTaskPlanFromModel } from './planning.js';
-export { OpenAICompatibleTaskModel, callModelForTaskSpec } from './model-client.js';
+export {
+  OpenAICompatiblePlanningModel,
+  callModelForTaskPlan,
+  callModelForTaskSpec
+} from './model-client.js';
 export { loadModelConfig, parseConfigOverrides, resolveModelProvider } from './model-config.js';
 export {
   DEFAULT_PLANNER_POLICY,
