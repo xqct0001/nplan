@@ -22,7 +22,14 @@ export {
 export { makeEvidenceItem, makeSourceRef } from './provenance.js';
 export { extractMarkdownLinks, knowledgeMetadataForText, parseKnowledgeDocument } from './okf.js';
 export { compileTaskSpec, composeTaskSpecFromModel, stripPromptArtifacts } from './understanding.js';
-export { validateTaskPlan, validateTaskSpec } from './validation.js';
+export { validateTaskPlan, validateTaskSpec, validateWorkPlan } from './validation.js';
+export {
+  defaultWorkPlanExportPath,
+  deriveWorkPlan,
+  renderWorkPlanMarkdown,
+  renderWorkPlanSources,
+  renderWorkPlanTodo
+} from './work-plan.js';
 export {
   defaultPrPlanExportPath,
   derivePrPlan,

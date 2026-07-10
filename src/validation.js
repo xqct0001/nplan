@@ -230,6 +230,70 @@ export function validateTaskPlan(plan) {
   };
 }
 
+export function validateWorkPlan(workPlan) {
+  const issues = [];
+  const requiredStrings = [
+    'version',
+    'plan_id',
+    'session_id',
+    'status',
+    'language',
+    'conclusion'
+  ];
+  const requiredArrays = ['questions', 'steps', 'acceptance', 'source_summary', 'next_actions'];
+
+  if (!isObject(workPlan)) return { valid: false, issues: ['invalid_workplan'] };
+
+  for (const field of requiredStrings) {
+    if (!nonEmptyString(workPlan[field])) issues.push(`missing_${field}`);
+  }
+  for (const field of requiredArrays) {
+    if (!Array.isArray(workPlan[field])) issues.push(`invalid_${field}`);
+  }
+
+  const steps = Array.isArray(workPlan.steps) ? workPlan.steps : [];
+  const stepIds = new Set();
+  for (const step of steps) {
+    if (!isObject(step)) {
+      issues.push('step_invalid');
+      continue;
+    }
+    if (!nonEmptyString(step.id)) issues.push('step_missing_id');
+    if (!nonEmptyString(step.title)) issues.push('step_missing_title');
+    if (!nonEmptyString(step.goal)) issues.push('step_missing_goal');
+    if (!Array.isArray(step.dependencies)) issues.push('step_invalid_dependencies');
+    if (!Array.isArray(step.outputs)) issues.push('step_invalid_outputs');
+    if (!nonEmptyStringArray(step.acceptance)) issues.push('step_missing_acceptance');
+    if (nonEmptyString(step.id)) {
+      const id = step.id.trim();
+      if (stepIds.has(id)) issues.push('duplicate_step_ids');
+      stepIds.add(id);
+    }
+  }
+
+  if (workPlan.status === 'planned') {
+    if (!steps.length) issues.push('missing_steps');
+    if (!nonEmptyStringArray(workPlan.acceptance)) issues.push('missing_acceptance');
+  }
+  if (workPlan.status === 'needs_clarification') {
+    if (steps.length) issues.push('clarification_with_steps');
+    if (!nonEmptyStringArray(workPlan.questions)) issues.push('clarification_without_questions');
+  }
+  if (!nonEmptyStringArray(workPlan.next_actions)) issues.push('missing_next_actions');
+
+  for (const source of Array.isArray(workPlan.source_summary) ? workPlan.source_summary : []) {
+    if (!isObject(source)) {
+      issues.push('source_invalid');
+      continue;
+    }
+    if (!nonEmptyString(source.source_id)) issues.push('source_missing_id');
+    if (!nonEmptyString(source.relative_path)) issues.push('source_missing_relative_path');
+    if (absolutePathLike(source.relative_path)) issues.push('source_path_not_relative');
+  }
+
+  return { valid: issues.length === 0, issues: unique(issues) };
+}
+
 function missingFields(value, fields) {
   if (!isObject(value)) return [...fields];
   return fields.filter((field) => !(field in value));
@@ -297,6 +361,11 @@ function nonEmptyStringArray(value) {
 
 function nonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function absolutePathLike(value) {
+  const text = String(value || '').trim();
+  return /^[A-Za-z]:[\\/]/.test(text) || /^[/\\]{1,2}/.test(text);
 }
 
 function toNumber(value) {
