@@ -459,7 +459,7 @@ test('interactive session supports Claude-like session commands and planning bou
     assert.match(stdout, /context: sources=/);
     assert.match(stdout, /sources:/);
     assert.match(stdout, /todo:/);
-    assert.match(stdout, /- \[ \] T1 Define TaskSpec artifacts/);
+    assert.match(stdout, /- \[ \] T1 Prepare TaskSpec artifacts/);
     assert.match(stdout, /revised plan:/);
     assert.match(stdout, /exported: \.nplan\/exports\//);
     assert.match(stdout, /exported: docs\/plans\/cli-pr-plan\.md/);

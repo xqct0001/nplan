@@ -193,7 +193,7 @@ export function validateTaskPlan(plan) {
   const coverageGaps = coverageGapsFor(plan, tasks);
   const policyReport = plannerPolicyReport(plan);
   const replanErrors = replanPolicyErrors(plan.replan_policy);
-  const policyErrors = [...policyReport.errors, ...replanErrors];
+  const policyErrors = [...policyReport.errors, ...replanErrors, ...coarseTaskErrors(tasks)];
   const taskCountExceeded =
     tasks.length > policyReport.maxTasks
       ? { count: tasks.length, max_tasks: policyReport.maxTasks }
@@ -322,6 +322,20 @@ function duplicateIds(tasks) {
     seen.add(id);
   }
   return [...duplicates];
+}
+
+function coarseTaskErrors(tasks) {
+  return tasks.flatMap((task, index) => {
+    if (!Array.isArray(task?.outputs) || task.outputs.length !== 1) return [];
+    const output = normalizedLowercase(task.outputs[0]);
+    const title = normalizedLowercase(task.title);
+    if (!output || (title !== `define ${output}` && title !== `定义${output}`)) return [];
+    return [`task_too_coarse:${taskId(task, index)}`];
+  });
+}
+
+function normalizedLowercase(value) {
+  return nonEmptyString(value) ? value.trim().toLowerCase() : '';
 }
 
 function hasCycle(graph) {

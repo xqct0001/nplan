@@ -5,12 +5,14 @@ import {
   LocalPlanningAgent,
   TASKPLAN_SCHEMA,
   TASKSPEC_SCHEMA,
+  composeTaskPlanFromModel,
   composeTaskSpecFromModel,
   compileTaskSpec,
-  planFromTaskSpec,
   validateTaskPlan,
   validateTaskSpec
 } from '../src/index.js';
+import { planFromTaskSpec } from '../src/planning.js';
+import { modelTask, readyTaskSpec } from './fixtures.js';
 
 test('schema artifacts expose required fields', () => {
   assert.equal(TASKSPEC_SCHEMA.title, 'TaskSpec');
@@ -20,6 +22,101 @@ test('schema artifacts expose required fields', () => {
   assert.ok(TASKSPEC_SCHEMA.required.includes('risk_level'));
   assert.equal(TASKPLAN_SCHEMA.title, 'TaskPlan');
   assert.ok(TASKPLAN_SCHEMA.required.includes('tasks'));
+});
+
+test('TaskPlan schema defines required nested task fields', () => {
+  const taskItems = TASKPLAN_SCHEMA.properties.tasks.items;
+  assert.equal(taskItems.type, 'object');
+  assert.deepEqual(taskItems.required, [
+    'id', 'title', 'goal', 'inputs', 'outputs', 'dependencies',
+    'parallel_group', 'acceptance', 'complexity', 'risk', 'model_tier', 'state'
+  ]);
+  assert.equal(taskItems.properties.state.const, 'pending');
+});
+
+test('model TaskPlan draft becomes a concrete validated DAG', () => {
+  const taskspec = readyTaskSpec({
+    inferred_goal: '制定三天北京亲子游计划',
+    deliverables: [
+      { name: '三日行程', format: 'markdown', required: true },
+      { name: '预算表', format: 'markdown', required: true }
+    ],
+    success_criteria: ['行程完整', '总预算不超过五千元']
+  });
+  const taskplan = composeTaskPlanFromModel(taskspec, {
+    global_goal: '制定三天北京亲子游计划',
+    global_acceptance: ['行程完整', '总预算不超过五千元'],
+    tasks: [
+      {
+        id: 'T1',
+        title: '确认家庭成员与出行限制',
+        goal: '明确儿童年龄、日期和出发位置',
+        inputs: ['用户请求'],
+        outputs: ['出行约束'],
+        dependencies: [],
+        parallel_group: 'G1',
+        acceptance: ['儿童年龄、日期和出发位置均明确'],
+        complexity: 'low',
+        risk: 'low',
+        model_tier: 'strong',
+        state: 'pending'
+      },
+      {
+        id: 'T2',
+        title: '编排三日路线并核算预算',
+        goal: '形成可执行的三日安排和预算',
+        inputs: ['出行约束'],
+        outputs: ['三日行程', '预算表'],
+        dependencies: ['T1'],
+        parallel_group: 'G2',
+        acceptance: ['覆盖三天且预算不超过五千元'],
+        complexity: 'medium',
+        risk: 'medium',
+        model_tier: 'strong',
+        state: 'pending'
+      }
+    ]
+  });
+
+  assert.equal(taskplan.tasks[0].title, '确认家庭成员与出行限制');
+  assert.equal(validateTaskPlan(taskplan).valid, true);
+});
+
+test('validator rejects generic deliverable wrappers', () => {
+  const taskplan = composeTaskPlanFromModel(readyTaskSpec(), {
+    tasks: [modelTask({ title: 'Define Markdown report', outputs: ['Markdown report'] })]
+  });
+  const report = validateTaskPlan(taskplan);
+  assert.equal(report.valid, false);
+  assert.ok(report.policy_errors.includes('task_too_coarse:T1'));
+});
+
+test('legacy internal planner remains valid during model-plan transition', () => {
+  const taskspec = readyTaskSpec();
+  const taskplan = planFromTaskSpec({
+    taskspec,
+    planner_policy: {
+      max_depth: 3,
+      max_tasks: 12,
+      allow_parallel_groups: true,
+      require_acceptance_per_task: true,
+      prefer_atomic_tasks: true
+    }
+  });
+
+  assert.deepEqual(taskplan.tasks.map((task) => task.title), [
+    'Prepare 三日行程',
+    'Prepare 预算表'
+  ]);
+  assert.equal(validateTaskPlan(taskplan).valid, true);
+
+  const groupedTaskplan = planFromTaskSpec({
+    taskspec: readyTaskSpec({
+      deliverables: [{ name: 'TaskSpec artifacts', format: 'json', required: true }]
+    })
+  });
+  assert.deepEqual(groupedTaskplan.tasks.map((task) => task.title), ['Prepare TaskSpec artifacts']);
+  assert.equal(validateTaskPlan(groupedTaskplan).valid, true);
 });
 
 test('blocking missing information cannot be marked ready', () => {
@@ -275,43 +372,23 @@ test('plan validator enforces task count limit and reports invalid policy', () =
 });
 
 test('generated plans retain planner policy for validation', () => {
-  const plan = planFromTaskSpec({
-    taskspec: {
+  const plan = composeTaskPlanFromModel(
+    {
       inferred_goal: 'plan a custom artifact',
-      deliverables: [{ name: 'Custom planning artifact', format: 'markdown', required: true }]
+      deliverables: [{ name: 'Custom planning artifact', format: 'markdown', required: true }],
+      success_criteria: ['artifact is planned']
     },
-    planner_policy: { max_tasks: 'many' }
-  });
+    {
+      tasks: [modelTask({ outputs: ['Custom planning artifact'] })]
+    },
+    { max_tasks: 'many' }
+  );
   const report = validateTaskPlan(plan);
 
   assert.equal(plan.planner_policy.max_tasks, 'many');
   assert.ok(plan.tasks.length > 0);
   assert.deepEqual(report.policy_errors, ['invalid_max_tasks']);
   assert.equal(report.valid, false);
-});
-
-test('generated plans create specific bounded tasks for general deliverables', () => {
-  const plan = planFromTaskSpec({
-    taskspec: {
-      inferred_goal: 'plan a launch decision package',
-      deliverables: [
-        { name: 'Market analysis', format: 'markdown', required: true },
-        { name: 'Launch checklist', format: 'markdown', required: true },
-        { name: 'Risk register', format: 'markdown', required: true }
-      ]
-    },
-    planner_policy: { max_tasks: 12 }
-  });
-  const report = validateTaskPlan(plan);
-  const titles = plan.tasks.map((task) => task.title);
-
-  assert.ok(plan.tasks.length >= 3);
-  assert.equal(titles.includes('Cover remaining deliverables'), false);
-  assert.ok(titles.includes('Define Market analysis'));
-  assert.ok(titles.includes('Define Launch checklist'));
-  assert.ok(titles.includes('Define Risk register'));
-  assert.deepEqual(report.coverage_gaps, []);
-  assert.equal(report.valid, true);
 });
 
 test('local planning agent requires a configured model', () => {

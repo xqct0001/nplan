@@ -127,7 +127,28 @@ export const TASKPLAN_SCHEMA = {
     plan_style: { type: 'string', enum: PLAN_STYLES },
     global_goal: { type: 'string' },
     global_acceptance: { type: 'array' },
-    tasks: { type: 'array' },
+    tasks: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: TASK_REQUIRED_FIELDS,
+        properties: {
+          id: { type: 'string' },
+          title: { type: 'string' },
+          goal: { type: 'string' },
+          inputs: { type: 'array', items: { type: 'string' } },
+          outputs: { type: 'array', items: { type: 'string' } },
+          dependencies: { type: 'array', items: { type: 'string' } },
+          parallel_group: { type: 'string' },
+          acceptance: { type: 'array', items: { type: 'string' } },
+          complexity: { type: 'string', enum: ['low', 'medium', 'high'] },
+          risk: { type: 'string', enum: ['low', 'medium', 'high'] },
+          model_tier: { type: 'string' },
+          state: { type: 'string', const: 'pending' }
+        },
+        additionalProperties: false
+      }
+    },
     replan_policy: { type: 'object' }
   }
 };
