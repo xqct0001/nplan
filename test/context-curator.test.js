@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, mkdir, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -226,3 +226,87 @@ test('context discovery never follows configured paths outside the project root'
 
   await rm(parent, { recursive: true, force: true });
 });
+
+test('project root remains a valid bounded scan directory', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'nplan-root-scan-'));
+  await writeFile(join(root, 'README.md'), '# Project root scan', 'utf8');
+
+  const context = collectContext(root, {
+    policy: { root_files: [], scan_dirs: ['.'] }
+  });
+
+  assert.deepEqual(context.source_map.map((source) => source.relative_path), ['README.md']);
+
+  await rm(root, { recursive: true, force: true });
+});
+
+test('root file symbolic link cannot read a target outside the project root', async (t) => {
+  const parent = await mkdtemp(join(tmpdir(), 'nplan-root-file-link-'));
+  t.after(() => rm(parent, { recursive: true, force: true }));
+  const root = join(parent, 'project');
+  const outside = join(parent, 'outside.md');
+  await mkdir(root);
+  await writeFile(join(root, 'README.md'), '# Project', 'utf8');
+  await writeFile(outside, '# Outside root-file secret marker', 'utf8');
+  if (!(await createLinkOrSkip(t, outside, join(root, 'outside-link.md'), 'file'))) return;
+
+  const context = collectContext(root, {
+    policy: { root_files: ['README.md', 'outside-link.md'], scan_dirs: [] }
+  });
+
+  assert.deepEqual(context.source_map.map((source) => source.relative_path), ['README.md']);
+  assert.doesNotMatch(JSON.stringify(context.evidence_map || []), /Outside root-file secret marker/);
+
+});
+
+test('top-level scan directory junction cannot escape the project root', async (t) => {
+  const parent = await mkdtemp(join(tmpdir(), 'nplan-scan-link-'));
+  t.after(() => rm(parent, { recursive: true, force: true }));
+  const root = join(parent, 'project');
+  const outside = join(parent, 'outside');
+  await mkdir(root);
+  await mkdir(outside);
+  await writeFile(join(outside, 'secret.md'), '# Outside scan secret marker', 'utf8');
+  if (!(await createLinkOrSkip(t, outside, join(root, 'external-scan'), 'dir'))) return;
+
+  const context = collectContext(root, {
+    policy: { root_files: [], scan_dirs: ['external-scan'] }
+  });
+
+  assert.deepEqual(context.source_map, []);
+
+});
+
+test('recursive symbolic directory is not traversed outside the project root', async (t) => {
+  const parent = await mkdtemp(join(tmpdir(), 'nplan-recursive-link-'));
+  t.after(() => rm(parent, { recursive: true, force: true }));
+  const root = join(parent, 'project');
+  const docs = join(root, 'docs');
+  const outside = join(parent, 'outside');
+  await mkdir(docs, { recursive: true });
+  await mkdir(outside);
+  await writeFile(join(docs, 'public.md'), '# Public', 'utf8');
+  await writeFile(join(outside, 'secret.md'), '# Recursive outside secret marker', 'utf8');
+  if (!(await createLinkOrSkip(t, outside, join(docs, 'external'), 'dir'))) return;
+
+  const context = collectContext(root, {
+    policy: { root_files: [], scan_dirs: ['docs'] }
+  });
+
+  assert.deepEqual(context.source_map.map((source) => source.relative_path), ['docs/public.md']);
+
+});
+
+async function createLinkOrSkip(t, target, path, kind) {
+  try {
+    const type = process.platform === 'win32' && kind === 'dir' ? 'junction' : kind;
+    await symlink(target, path, type);
+    return true;
+  } catch (error) {
+    if (['EACCES', 'EINVAL', 'ENOSYS', 'ENOTSUP', 'EPERM'].includes(error?.code)) {
+      t.skip(`symbolic links are unavailable: ${error.code}`);
+      return false;
+    }
+    throw error;
+  }
+}

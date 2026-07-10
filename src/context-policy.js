@@ -76,7 +76,7 @@ export function isContextPathExcluded(relativePath, exclusions = []) {
 function normalizeProjectRelativePath(value) {
   const raw = typeof value === 'string' ? value.trim() : '';
   if (!raw) throw new TypeError('context exclusions must contain non-empty project-relative paths');
-  if (/^(?:[a-z]:[\\/]|[\\/]{1,2})/i.test(raw)) {
+  if (/^(?:[a-z]:|[\\/]{1,2})/i.test(raw)) {
     throw new TypeError('context exclusions must use project-relative paths');
   }
   const normalized = raw.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '');

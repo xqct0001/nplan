@@ -89,6 +89,8 @@ project-relative files or directories. Invalid absolute or parent paths are
 rejected, and configured scan paths cannot escape the project root. The
 effective policy is returned with the curated context so a cloud-consent
 fingerprint represents the same bounded scan shown in its preview.
+Source discovery checks both lexical and resolved paths, so symbolic links and
+junctions cannot expose a target outside the project root.
 
 The result is still a local, read-only `context_pack`. It does not execute
 tasks, write files, publish metadata, or call Knowledge Catalog.
@@ -99,8 +101,10 @@ Consent state is project-scoped at `.nplan/consent.json`. It stores provider
 identity, normalized context-scope fingerprint, confirmation time, and sorted
 project-relative exclusions only. API keys, task text, evidence text, and
 absolute source paths are never stored in this record. Changing the provider,
-scan directories, allowed extensions, ignored directories, source budgets, or
-exclusions invalidates the consent.
+root files, scan directories, allowed extensions, ignored directories, parser
+version, core-source paths, source priorities, source budgets, or exclusions
+invalidates the consent. Consent base URLs with credentials, query strings, or
+fragments are rejected before persistence.
 
 ## Adding A New Concept
 

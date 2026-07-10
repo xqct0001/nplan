@@ -13,11 +13,21 @@ export function buildConsentScope(provider, policy, exclusions = []) {
     providerId: requiredString(provider.id, 'provider.id'),
     baseUrl: requiredSafeBaseUrl(provider.base_url, 'provider.base_url'),
     scanDirs: requiredArray(policy.scan_dirs, 'context policy scan_dirs'),
+    rootFiles: requiredArray(policy.root_files, 'context policy root_files'),
     allowedExtensions: requiredArray(
       policy.allowed_extensions,
       'context policy allowed_extensions'
     ),
     ignoreDirs: requiredArray(policy.ignore_dirs, 'context policy ignore_dirs'),
+    parserVersion: requiredString(policy.parser_version, 'context policy parser_version'),
+    coreSourcePaths: requiredArray(
+      policy.core_source_paths,
+      'context policy core_source_paths'
+    ),
+    sourcePriority: requiredNumericObject(
+      policy.source_priority,
+      'context policy source_priority'
+    ),
     maxSources: requiredNonNegativeNumber(policy.max_sources, 'context policy max_sources'),
     maxEvidenceCharsPerSource: requiredNonNegativeNumber(
       policy.max_evidence_chars_per_source,
@@ -33,8 +43,12 @@ export function consentFingerprint(scope) {
     provider_id: normalized.providerId,
     base_url: normalizeBaseUrl(normalized.baseUrl),
     scan_dirs: sorted(normalized.scanDirs),
+    root_files: sorted(normalized.rootFiles),
     allowed_extensions: sorted(normalized.allowedExtensions),
     ignore_dirs: sorted(normalized.ignoreDirs),
+    parser_version: normalized.parserVersion,
+    core_source_paths: sorted(normalized.coreSourcePaths),
+    source_priority: normalized.sourcePriority,
     max_sources: normalized.maxSources,
     max_evidence_chars_per_source: normalized.maxEvidenceCharsPerSource,
     exclusions: normalized.exclusions
@@ -112,6 +126,8 @@ export function hasValidConsent(record, scope) {
     return (
       record.provider_id === normalized.providerId &&
       normalizeBaseUrl(record.base_url) === normalizeBaseUrl(normalized.baseUrl) &&
+      JSON.stringify(normalizeUserExclusions(record.exclusions)) ===
+        JSON.stringify(normalized.exclusions) &&
       record.scope_fingerprint === consentFingerprint(normalized)
     );
   } catch {
@@ -124,11 +140,18 @@ function normalizeScope(scope = {}) {
     providerId: requiredString(scope.providerId, 'consent scope providerId'),
     baseUrl: requiredSafeBaseUrl(scope.baseUrl, 'consent scope baseUrl'),
     scanDirs: requiredArray(scope.scanDirs, 'consent scope scanDirs'),
+    rootFiles: requiredArray(scope.rootFiles, 'consent scope rootFiles'),
     allowedExtensions: requiredArray(
       scope.allowedExtensions,
       'consent scope allowedExtensions'
     ),
     ignoreDirs: requiredArray(scope.ignoreDirs, 'consent scope ignoreDirs'),
+    parserVersion: requiredString(scope.parserVersion, 'consent scope parserVersion'),
+    coreSourcePaths: requiredArray(scope.coreSourcePaths, 'consent scope coreSourcePaths'),
+    sourcePriority: requiredNumericObject(
+      scope.sourcePriority,
+      'consent scope sourcePriority'
+    ),
     maxSources: requiredNonNegativeNumber(scope.maxSources, 'consent scope maxSources'),
     maxEvidenceCharsPerSource: requiredNonNegativeNumber(
       scope.maxEvidenceCharsPerSource,
@@ -183,7 +206,6 @@ function consentPath(root) {
 
 function normalizeBaseUrl(value) {
   const url = new URL(requiredSafeBaseUrl(value, 'consent scope baseUrl'));
-  url.hash = '';
   url.pathname = url.pathname.replace(/\/+$/, '') || '/';
   return url.toString();
 }
@@ -209,11 +231,10 @@ function requiredSafeBaseUrl(value, field) {
   if (!['http:', 'https:'].includes(url.protocol)) {
     throw new TypeError(`${field} must be a valid HTTP(S) URL`);
   }
-  const hasSecretParameter = [...url.searchParams.keys()].some((name) =>
-    /(?:api[_-]?key|auth|credential|secret|signature|token)/i.test(name)
-  );
-  if (url.username || url.password || hasSecretParameter) {
-    throw new TypeError(`${field} must not contain credentials or secret query parameters`);
+  if (url.username || url.password || /[?#]/.test(raw)) {
+    throw new TypeError(
+      `${field} must not contain credentials, query parameters or fragments`
+    );
   }
   return raw;
 }
@@ -221,6 +242,19 @@ function requiredSafeBaseUrl(value, field) {
 function requiredArray(value, field) {
   if (!Array.isArray(value)) throw new TypeError(`${field} must be an array`);
   return value.map((item) => String(item));
+}
+
+function requiredNumericObject(value, field) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError(`${field} must be an object`);
+  }
+  const result = {};
+  for (const key of Object.keys(value).sort()) {
+    const number = Number(value[key]);
+    if (!Number.isFinite(number)) throw new TypeError(`${field}.${key} must be a number`);
+    result[key] = number;
+  }
+  return result;
 }
 
 function requiredNonNegativeNumber(value, field) {

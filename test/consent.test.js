@@ -19,8 +19,12 @@ function cloudScope(overrides = {}) {
     providerId: 'deepseek',
     baseUrl: 'https://api.deepseek.com',
     scanDirs: ['docs', 'src', 'test'],
+    rootFiles: ['AGENTS.md', 'README.md'],
     allowedExtensions: ['.md', '.js', '.json', '.toml'],
     ignoreDirs: ['.git', '.nplan', 'node_modules'],
+    parserVersion: 'local-text-v1',
+    coreSourcePaths: ['src/planning.js', 'src/validation.js'],
+    sourcePriority: { source: 70, spec: 80 },
     maxSources: 24,
     maxEvidenceCharsPerSource: 1200,
     exclusions: [],
@@ -52,16 +56,33 @@ function curatedContextFixture() {
   };
 }
 
+function minimalContextPolicy() {
+  return {
+    scan_dirs: [],
+    root_files: [],
+    allowed_extensions: [],
+    ignore_dirs: [],
+    parser_version: 'local-text-v1',
+    core_source_paths: [],
+    source_priority: {},
+    max_sources: 1,
+    max_evidence_chars_per_source: 1
+  };
+}
+
 test('buildConsentScope keeps only the effective provider and bounded context policy', () => {
   const scope = buildConsentScope(
     { id: 'deepseek', base_url: 'https://api.deepseek.com', apiKey: 'secret' },
     {
       scan_dirs: ['src', 'docs'],
+      root_files: ['README.md'],
       allowed_extensions: ['.js', '.md'],
       ignore_dirs: ['node_modules', '.git'],
+      parser_version: 'local-text-v1',
+      core_source_paths: ['src/planning.js'],
+      source_priority: { source: 70, spec: 80 },
       max_sources: 12,
       max_evidence_chars_per_source: 800,
-      root_files: ['README.md']
     },
     ['src/private.js', 'docs/private']
   );
@@ -70,8 +91,12 @@ test('buildConsentScope keeps only the effective provider and bounded context po
     providerId: 'deepseek',
     baseUrl: 'https://api.deepseek.com',
     scanDirs: ['src', 'docs'],
+    rootFiles: ['README.md'],
     allowedExtensions: ['.js', '.md'],
     ignoreDirs: ['node_modules', '.git'],
+    parserVersion: 'local-text-v1',
+    coreSourcePaths: ['src/planning.js'],
+    sourcePriority: { source: 70, spec: 80 },
     maxSources: 12,
     maxEvidenceCharsPerSource: 800,
     exclusions: ['docs/private', 'src/private.js']
@@ -105,8 +130,12 @@ test('provider or effective scan scope change invalidates consent', () => {
     { providerId: 'dashscope' },
     { baseUrl: 'https://proxy.example/v1' },
     { scanDirs: ['docs', 'src'] },
+    { rootFiles: ['README.md'] },
     { allowedExtensions: ['.md', '.js'] },
     { ignoreDirs: ['.git', '.nplan'] },
+    { parserVersion: 'local-text-v2' },
+    { coreSourcePaths: ['src/planning.js'] },
+    { sourcePriority: { source: 90, spec: 80 } },
     { maxSources: 30 },
     { maxEvidenceCharsPerSource: 800 },
     { exclusions: ['docs/private.md'] }
@@ -121,13 +150,26 @@ test('provider or effective scan scope change invalidates consent', () => {
   );
 });
 
+test('tampering with stored exclusions invalidates consent', () => {
+  const scope = cloudScope({ exclusions: ['docs/private.md'] });
+  const saved = consentRecord(scope);
+
+  assert.equal(
+    hasValidConsent({ ...saved, exclusions: ['src/private.js'] }, scope),
+    false
+  );
+});
+
 test('fingerprint is stable across array order and a trailing base URL slash', () => {
   const first = cloudScope();
   const reordered = cloudScope({
     baseUrl: 'https://api.deepseek.com/',
     scanDirs: [...first.scanDirs].reverse(),
+    rootFiles: [...first.rootFiles].reverse(),
     allowedExtensions: [...first.allowedExtensions].reverse(),
-    ignoreDirs: [...first.ignoreDirs].reverse()
+    ignoreDirs: [...first.ignoreDirs].reverse(),
+    coreSourcePaths: [...first.coreSourcePaths].reverse(),
+    sourcePriority: { spec: 80, source: 70 }
   });
 
   assert.equal(consentFingerprint(first), consentFingerprint(reordered));
@@ -144,17 +186,27 @@ test('consent preview lists relative sources and budgets only', () => {
 
 test('invalid absolute or parent exclusions are rejected before persistence', async () => {
   assert.throws(
-    () => buildConsentScope({ id: 'deepseek', base_url: 'https://api.deepseek.com' }, {
-      scan_dirs: [], allowed_extensions: [], ignore_dirs: [], max_sources: 1,
-      max_evidence_chars_per_source: 1
-    }, ['../secret.md']),
+    () => buildConsentScope(
+      { id: 'deepseek', base_url: 'https://api.deepseek.com' },
+      minimalContextPolicy(),
+      ['../secret.md']
+    ),
     /project-relative/
   );
   assert.throws(
-    () => buildConsentScope({ id: 'deepseek', base_url: 'https://api.deepseek.com' }, {
-      scan_dirs: [], allowed_extensions: [], ignore_dirs: [], max_sources: 1,
-      max_evidence_chars_per_source: 1
-    }, ['.']),
+    () => buildConsentScope(
+      { id: 'deepseek', base_url: 'https://api.deepseek.com' },
+      minimalContextPolicy(),
+      ['.']
+    ),
+    /project-relative/
+  );
+  assert.throws(
+    () => buildConsentScope(
+      { id: 'deepseek', base_url: 'https://api.deepseek.com' },
+      minimalContextPolicy(),
+      ['C:secret.md']
+    ),
     /project-relative/
   );
 
@@ -184,6 +236,28 @@ test('malformed or incompatible consent records load as no consent', async () =>
   unsafe.base_url = 'https://api.example/v1?api_key=secret';
   await writeFile(join(root, '.nplan', 'consent.json'), JSON.stringify(unsafe), 'utf8');
   assert.equal(await loadConsent(root), null);
+});
+
+test('consent base URLs reject every query string and fragment', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'nplan-consent-url-'));
+  const unsafeUrls = [
+    'https://api.example/v1?region=cn',
+    'https://api.example/v1#private-routing',
+    'https://api.example/v1?',
+    'https://api.example/v1#'
+  ];
+
+  for (const baseUrl of unsafeUrls) {
+    const scope = cloudScope({ baseUrl });
+    await assert.rejects(saveConsent(root, scope), /query parameters or fragments/);
+
+    const record = consentRecord(cloudScope());
+    record.base_url = baseUrl;
+    await mkdir(join(root, '.nplan'), { recursive: true });
+    await writeFile(join(root, '.nplan', 'consent.json'), JSON.stringify(record), 'utf8');
+    assert.equal(await loadConsent(root), null);
+    assert.equal(hasValidConsent(record, cloudScope()), false);
+  }
 });
 
 test('revoke removes valid project consent', async () => {

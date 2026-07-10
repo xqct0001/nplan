@@ -203,14 +203,18 @@ and testable.
 
 `context_policy.user_exclusions` accepts project-relative files or directories.
 Exclusions are applied before source contents are read and are returned as part
-of the effective context policy. Paths outside the project root are never
-discovered.
+of the effective context policy. Lexical and resolved paths are both checked;
+symbolic links and junctions whose real target is outside the project root are
+never read.
 
 Cloud-context consent records are stored at `.nplan/consent.json`. They contain
 only the provider id and base URL, a fingerprint of the bounded context scope,
 the confirmation time, and sorted exclusions. They do not contain API keys,
 task text, evidence text, or absolute source paths. Provider or effective scope
-changes invalidate the saved consent.
+changes invalidate the saved consent. The fingerprint covers root files, scan
+directories, extension and ignore rules, parser version, core-source ranking,
+source priorities, budgets, and exclusions. Consent base URLs cannot contain
+credentials, query strings, or fragments.
 
 ## OKF-Style Local Knowledge
 
