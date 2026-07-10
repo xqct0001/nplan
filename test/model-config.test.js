@@ -11,6 +11,7 @@ import {
   resolveModelProvider
 } from '../src/model-config.js';
 import { OpenAICompatiblePlanningModel } from '../src/model-client.js';
+import { listProviderChoices } from '../src/model-init.js';
 
 test('loads Codex-style model provider config from TOML', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'nplan-'));
@@ -132,4 +133,22 @@ test('built-in providers cover common local and Chinese OpenAI-compatible endpoi
   assert.equal(BUILTIN_MODEL_PROVIDERS.doubao.base_url, BUILTIN_MODEL_PROVIDERS.volcengine_ark.base_url);
   assert.equal(BUILTIN_MODEL_PROVIDERS.minimax.response_format, 'none');
   assert.equal(BUILTIN_MODEL_PROVIDERS.modelscope.env_key, 'MODELSCOPE_API_KEY');
+});
+
+test('provider choices expose canonical groups without duplicate aliases', () => {
+  const choices = listProviderChoices();
+
+  assert.deepEqual(
+    choices.recommended.map((item) => item.id),
+    ['deepseek', 'dashscope', 'kimi', 'zhipu', 'doubao']
+  );
+  assert.deepEqual(choices.local.map((item) => item.id), ['ollama', 'lmstudio']);
+  assert.equal(choices.more.some((item) => item.id === 'tongyi'), false);
+  assert.equal(choices.more.some((item) => item.id === 'qwen'), false);
+  assert.equal(choices.more.some((item) => item.id === 'moonshot'), false);
+  assert.equal(choices.more.some((item) => item.id === 'bigmodel'), false);
+  assert.equal(choices.more.some((item) => item.id === 'glm'), false);
+  assert.equal(choices.more.some((item) => item.id === 'wenxin'), false);
+  assert.equal(choices.more.some((item) => item.id === 'volcengine_ark'), false);
+  assert.equal(choices.more.some((item) => item.id === 'hunyuan'), false);
 });

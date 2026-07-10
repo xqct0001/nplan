@@ -795,6 +795,7 @@ test('setup wizard falls back when model fetch fails and does not save key by de
 
     assert.equal(result.code, 0);
     assert.match(result.stdout, /Could not fetch models/);
+    assert.match(result.stdout, /下一步/);
     assert.match(result.stdout, /Run this before using NPlan in CMD:/);
     assert.match(result.stdout, /set FALLBACK_API_KEY=<your-key>/);
     assert.doesNotMatch(result.stdout, /secret/);
@@ -1143,6 +1144,264 @@ test('doctor command reports local CLI status without requiring a model', async 
   await rm(dir, { recursive: true, force: true });
 });
 
+test('setup accepts Chinese confirmation and re-prompts an invalid provider', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-setup-zh-'));
+  try {
+    const result = await runCli(
+      ['setup'],
+      ['not-a-provider', 'deepseek', '', '否', ''].join('\n') + '\n',
+      { HOME: dir, USERPROFILE: dir, NPLAN_HOME: '', NPLAN_MODEL: '' },
+      dir
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /无法识别，请重新选择/);
+    assert.match(result.stdout, /配置完成/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('setup re-prompts an invalid Chinese confirmation', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-setup-confirm-zh-'));
+  try {
+    const result = await runCli(
+      ['setup'],
+      ['deepseek', '', '随便', '否', ''].join('\n') + '\n',
+      { HOME: dir, USERPROFILE: dir, NPLAN_HOME: '', NPLAN_MODEL: '' },
+      dir
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /请输入“是”或“否”/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('setup uses English group labels with --lang en', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-setup-en-'));
+  try {
+    const result = await runCli(
+      ['setup', '--lang', 'en'],
+      ['deepseek', '', 'N', ''].join('\n') + '\n',
+      { HOME: dir, USERPROFILE: dir, NPLAN_HOME: '', NPLAN_MODEL: '' },
+      dir
+    );
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /Recommended cloud providers:/);
+    assert.doesNotMatch(result.stdout, /推荐云端 Provider/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('TTY setup masks the API key and restores raw mode', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-setup-tty-secret-'));
+  const oldCwd = process.cwd();
+  const input = new PassThrough();
+  input.isTTY = true;
+  const rawModes = [];
+  input.setRawMode = (value) => {
+    rawModes.push(value);
+    return input;
+  };
+  let stdout = '';
+  const prompts = [
+    { pattern: /Choose provider number or id|请选择服务商/, text: 'deepseek\n' },
+    { pattern: /DEEPSEEK_API_KEY/, text: 'secret-value\n' },
+    { pattern: /Fetch model list|获取模型列表/, text: '否\n' },
+    { pattern: /Model name|模型名称/, text: '\n' },
+    { pattern: /Save this API key|保存 API Key/, text: '否\n', end: true }
+  ];
+  let promptIndex = 0;
+  const output = new Writable({
+    write(chunk, _encoding, callback) {
+      stdout += chunk.toString();
+      const next = prompts[promptIndex];
+      if (next && next.pattern.test(stdout)) {
+        promptIndex += 1;
+        setImmediate(() => next.end ? input.end(next.text) : input.write(next.text));
+      }
+      callback();
+    }
+  });
+  output.isTTY = true;
+
+  try {
+    process.chdir(dir);
+    await runModelSetupWizard({
+      streams: { input, output, error: new PassThrough() },
+      fetchImpl: async () => {
+        throw new Error('model list must not be fetched');
+      }
+    });
+
+    assert.equal(promptIndex, prompts.length);
+    assert.doesNotMatch(stdout, /secret-value/);
+    assert.match(stdout, /\*{4,}/);
+    assert.deepEqual(rawModes, [true, false]);
+  } finally {
+    process.chdir(oldCwd);
+    input.destroy();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('TTY secret entry restores raw mode after Ctrl-C', async () => {
+  const result = await runTtySecretInterruption('interrupt');
+
+  await assert.rejects(result.promise, /setup cancelled/);
+  assert.equal(result.rawModes.at(-1), false);
+  await result.cleanup();
+});
+
+test('TTY secret entry restores raw mode after EOF', async () => {
+  const result = await runTtySecretInterruption('eof');
+
+  await result.promise;
+  assert.equal(result.rawModes.at(-1), false);
+  await result.cleanup();
+});
+
+test('TTY secret entry restores raw mode when enabling raw mode throws', async () => {
+  const result = await runTtySecretInterruption('raw-error');
+
+  await assert.rejects(result.promise, /raw mode failed/);
+  assert.deepEqual(result.rawModes, [true, false]);
+  await result.cleanup();
+});
+
+test('doctor distinguishes local checks from online provider health', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-doctor-local-'));
+  try {
+    const local = await runCli(
+      ['doctor'],
+      '',
+      { HOME: dir, USERPROFILE: dir, NPLAN_HOME: '', NPLAN_MODEL: '' },
+      dir
+    );
+    assert.equal(local.code, 0);
+    assert.match(local.stdout, /未配置/);
+    assert.match(local.stdout, /未测试联网/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+
+  await withHealthServer(async ({ configPath, requests, cwd, env }) => {
+    const configuredLocal = await runCli(['doctor', '--config-path', configPath], '', env, cwd);
+    assert.equal(configuredLocal.code, 0);
+    assert.match(configuredLocal.stdout, /API Key：已配置/);
+    assert.match(configuredLocal.stdout, /云端上下文授权：未保存/);
+    assert.match(configuredLocal.stdout, /未测试联网/);
+    assert.equal(requests.length, 0);
+
+    const online = await runCli(['doctor', '--online', '--config-path', configPath], '', env, cwd);
+
+    assert.equal(online.code, 0);
+    assert.match(online.stdout, /连接正常/);
+    assert.equal(requests.length, 1);
+    assert.match(requests[0].url, /\/models$/);
+    assert.equal(requests.some((item) => item.url.endsWith('/chat/completions')), false);
+    assert.equal(requests.some((item) => item.url.endsWith('/responses')), false);
+  });
+});
+
+test('doctor distinguishes a missing API key and makes no online request', async () => {
+  await withHealthServer(async ({ configPath, requests, cwd }) => {
+    const local = await runCli(
+      ['doctor', '--config-path', configPath],
+      '',
+      { FAKE_MODEL_KEY: '' },
+      cwd
+    );
+    assert.equal(local.code, 0);
+    assert.match(local.stdout, /API Key：缺失/);
+    assert.match(local.stdout, /nplan setup/);
+    assert.equal(requests.length, 0);
+
+    const online = await runCli(
+      ['doctor', '--online', '--config-path', configPath],
+      '',
+      { FAKE_MODEL_KEY: '' },
+      cwd
+    );
+    assert.equal(online.code, 1);
+    assert.match(online.stdout, /API Key：缺失/);
+    assert.equal(requests.length, 0);
+  });
+});
+
+test('online doctor classifies failures without leaking provider response secrets', async () => {
+  await withHealthServer(async ({ configPath, cwd, env }, response) => {
+    response.status = 401;
+    response.body = JSON.stringify({ error: 'provider-response-secret' });
+    const result = await runCli(['doctor', '--online', '--config-path', configPath], '', env, cwd);
+
+    assert.equal(result.code, 1);
+    assert.match(result.stdout, /API Key/);
+    assert.match(result.stdout, /下一步/);
+    assert.doesNotMatch(result.stdout, /provider-response-secret/);
+    assert.doesNotMatch(result.stdout, /secret/);
+  });
+});
+
+test('online doctor classifies a models endpoint timeout', async () => {
+  await withHealthServer(async ({ configPath, cwd, env }, response) => {
+    response.delayMs = 100;
+    const result = await runCli([
+      'doctor',
+      '--online',
+      '--config-path',
+      configPath,
+      '--config',
+      'model_providers.cloudtest.timeout_ms=30'
+    ], '', env, cwd);
+
+    assert.equal(result.code, 1);
+    assert.match(result.stdout, /响应超时/);
+    assert.match(result.stdout, /下一步/);
+  });
+});
+
+test('doctor reports an invalid provider address without exposing its query secret', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-doctor-invalid-url-'));
+  const configPath = join(dir, 'config.toml');
+  await writeFile(configPath, [
+    'model = "test-model"',
+    'model_provider = "broken"',
+    '[model_providers.broken]',
+    'base_url = "not-a-url?api_key=query-secret"',
+    'wire_api = "chat_completions"'
+  ].join('\n'), 'utf8');
+  try {
+    const result = await runCli(['doctor', '--config-path', configPath], '', {}, dir);
+    assert.equal(result.code, 1);
+    assert.match(result.stdout, /Provider 地址：无效/);
+    assert.match(result.stdout, /下一步/);
+    assert.doesNotMatch(result.stdout, /query-secret|api_key=/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('print mode formats provider failures without exposing response secrets', async () => {
+  await withFailingModelServer(async ({ configPath, cwd, env }) => {
+    const result = await runCli(
+      ['--config-path', configPath, '--print', '规划一个安全诊断'],
+      '',
+      env,
+      cwd
+    );
+
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /API Key/);
+    assert.match(result.stderr, /下一步/);
+    assert.doesNotMatch(result.stderr, /response-secret|query-secret|FAKE_MODEL_KEY/);
+  });
+});
+
 test('interactive resume ignores corrupt session files without crashing', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'nplan-corrupt-session-'));
   const sessionDir = join(dir, '.nplan', 'sessions');
@@ -1261,6 +1520,129 @@ async function runCli(args, stdin = '', env = {}, cwd = process.cwd()) {
   child.stdin.end(stdin);
   const [code] = await once(child, 'close');
   return { code, stdout, stderr };
+}
+
+async function withHealthServer(fn) {
+  const requests = [];
+  const responseControl = {
+    status: 200,
+    body: JSON.stringify({ data: [{ id: 'semantic-test-model' }] }),
+    delayMs: 0
+  };
+  const server = createServer((request, response) => {
+    requests.push({ url: request.url, method: request.method });
+    if (!request.url.endsWith('/models')) {
+      response.writeHead(500, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ error: 'doctor must only call /models' }));
+      return;
+    }
+    const send = () => {
+      response.writeHead(responseControl.status, { 'content-type': 'application/json' });
+      response.end(responseControl.body);
+    };
+    if (responseControl.delayMs) setTimeout(send, responseControl.delayMs);
+    else send();
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const cwd = await mkdtemp(join(tmpdir(), 'nplan-doctor-online-'));
+  const configPath = join(cwd, 'config.toml');
+  await writeFile(configPath, [
+    'model = "semantic-test-model"',
+    'model_provider = "cloudtest"',
+    '[model_providers.cloudtest]',
+    `base_url = "http://127.0.0.1:${port}/v1"`,
+    `models_url = "http://127.0.0.1:${port}/v1/models"`,
+    'context_location = "cloud"',
+    'env_key = "FAKE_MODEL_KEY"',
+    'wire_api = "chat_completions"',
+    'timeout_ms = 1000'
+  ].join('\n'), 'utf8');
+  try {
+    return await fn(
+      { configPath, requests, cwd, env: { FAKE_MODEL_KEY: 'secret' } },
+      responseControl
+    );
+  } finally {
+    server.close();
+    await rm(cwd, { recursive: true, force: true });
+  }
+}
+
+async function withFailingModelServer(fn) {
+  const server = createServer((_request, response) => {
+    response.writeHead(401, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ error: 'response-secret' }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const cwd = await mkdtemp(join(tmpdir(), 'nplan-model-error-'));
+  const configPath = join(cwd, 'config.toml');
+  await writeFile(configPath, [
+    'model = "semantic-test-model"',
+    'model_provider = "localtest"',
+    '[model_providers.localtest]',
+    `base_url = "http://127.0.0.1:${port}/v1"`,
+    'context_location = "local"',
+    'env_key = "FAKE_MODEL_KEY"',
+    'wire_api = "chat_completions"',
+    'request_max_retries = 0'
+  ].join('\n'), 'utf8');
+  try {
+    return await fn({ configPath, cwd, env: { FAKE_MODEL_KEY: 'query-secret' } });
+  } finally {
+    server.close();
+    await rm(cwd, { recursive: true, force: true });
+  }
+}
+
+async function runTtySecretInterruption(mode) {
+  const cwd = await mkdtemp(join(tmpdir(), `nplan-secret-${mode}-`));
+  const oldCwd = process.cwd();
+  process.chdir(cwd);
+  const input = new PassThrough();
+  input.isTTY = true;
+  const rawModes = [];
+  input.setRawMode = (value) => {
+    rawModes.push(value);
+    if (mode === 'raw-error' && value) throw new Error('raw mode failed');
+    return input;
+  };
+  let providerSent = false;
+  let secretSent = false;
+  const output = new Writable({
+    write(chunk, _encoding, callback) {
+      const text = chunk.toString();
+      if (!providerSent && /Choose provider number or id|请选择服务商/.test(text)) {
+        providerSent = true;
+        setImmediate(() => input.write('deepseek\n'));
+      } else if (!secretSent && /DEEPSEEK_API_KEY SK\/API key/.test(text)) {
+        secretSent = true;
+        setImmediate(() => {
+          if (mode === 'interrupt') input.write('\u0003');
+          else if (mode === 'eof') input.end();
+        });
+      }
+      callback();
+    }
+  });
+  output.isTTY = true;
+  const promise = runModelSetupWizard({
+    streams: { input, output, error: new PassThrough() },
+    fetchImpl: async () => new Response(JSON.stringify({ data: [] }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' }
+    })
+  });
+  return {
+    promise,
+    rawModes,
+    async cleanup() {
+      input.destroy();
+      process.chdir(oldCwd);
+      await rm(cwd, { recursive: true, force: true });
+    }
+  };
 }
 
 function runtimeForConfig(configPath, env) {

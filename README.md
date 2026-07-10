@@ -48,9 +48,14 @@ installation, `nplan` is the command entry point.
 
 ## Quick Start
 
-`nplan setup` lets you choose a provider, paste an API key, fetch model choices
+`nplan setup` groups canonical providers into recommended cloud, local, and
+more choices. It lets you choose a provider, paste a masked API key, fetch model choices
 from the provider's OpenAI-compatible model list endpoint when available, and
 write `.nplan/config.toml`. That directory is ignored by git.
+
+Run `nplan doctor` for offline configuration, API-key, and consent checks. Use
+`nplan doctor --online` only when you want to test the provider's models
+endpoint; it does not send a planning request.
 
 If no model is configured yet, running `nplan` in an interactive terminal starts
 the same first-run setup wizard before opening the planning session. Print mode
@@ -83,7 +88,7 @@ Commands:
                     Show or revoke project cloud-context consent
   providers         List built-in model providers
   resume [id]       Resume a saved planning session
-  doctor            Check local CLI configuration
+  doctor [--online] Check local configuration; optionally test the models endpoint
 
 Options:
   -p, --print       Print one JSON result and exit
@@ -240,6 +245,7 @@ src/
   i18n.js               CLI locales and slash-command aliases
   model-client.js       OpenAI-compatible model client
   model-config.js       model provider configuration
+  model-errors.js       safe provider error messages and next actions
   model-init.js         project config writer
   model-wizard.js       guided model setup wizard
   okf.js                OKF-style Markdown parser

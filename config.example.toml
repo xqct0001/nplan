@@ -6,6 +6,10 @@
 # `context_location` is `local` or `cloud`; custom providers may omit it and
 # NPlan will classify loopback base URLs as local. A built-in base URL override
 # without this field also uses that URL-based fallback.
+# `nplan setup` shows canonical providers in recommended cloud, local, and more
+# groups; compatibility aliases remain valid in existing config files.
+# `nplan doctor` is offline by default. `nplan doctor --online` only calls the
+# selected provider's `models_url` (or `<base_url>/models`) health endpoint.
 
 model = "gpt-5.5"
 model_provider = "openai"

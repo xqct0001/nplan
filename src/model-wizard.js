@@ -1,12 +1,17 @@
 import readline from 'node:readline';
 
 import { BUILTIN_MODEL_PROVIDERS } from './model-config.js';
+import { formatModelError } from './model-errors.js';
 import { listProviderChoices, writeProjectModelConfig } from './model-init.js';
 
 const DEFAULT_WIRE_API = 'chat_completions';
 const MAX_MODEL_CHOICES = 30;
 
-export async function runModelSetupWizard({ streams, fetchImpl = globalThis.fetch } = {}) {
+export async function runModelSetupWizard({
+  streams,
+  fetchImpl = globalThis.fetch,
+  locale = 'zh-CN'
+} = {}) {
   const output = streams?.output || process.stdout;
   const input = streams?.input || process.stdin;
   const ui = createQuestioner({ input, output });
@@ -15,9 +20,9 @@ export async function runModelSetupWizard({ streams, fetchImpl = globalThis.fetc
     output.write('NPlan setup\n');
     output.write('This wizard configures one OpenAI-compatible model provider.\n\n');
 
-    const { providerId, provider } = await chooseProvider(ui, output);
+    const { providerId, provider } = await chooseProvider(ui, output, locale);
     const apiKey = await askApiKey(ui, output, provider);
-    const models = await maybeFetchModels({ ui, output, provider, apiKey, fetchImpl });
+    const models = await maybeFetchModels({ ui, output, provider, apiKey, fetchImpl, locale });
     const model = await chooseModel(ui, output, provider, models);
     const providerOverrides = { ...provider };
 
@@ -25,7 +30,8 @@ export async function runModelSetupWizard({ streams, fetchImpl = globalThis.fetc
       const saveKey = await confirm(
         ui,
         'Save this API key in .nplan/config.toml? .nplan is ignored by git in this project',
-        false
+        false,
+        locale
       );
       if (saveKey) providerOverrides.api_key = apiKey;
     }
@@ -36,7 +42,7 @@ export async function runModelSetupWizard({ streams, fetchImpl = globalThis.fetc
       providerOverrides
     });
 
-    output.write('\nSetup complete.\n');
+    output.write(locale === 'en' ? '\nSetup complete.\n' : '\n配置完成 / Setup complete.\n');
     output.write(`Configured ${result.providerId} (${result.model}) in ${result.configPath}.\n`);
     if (apiKey && provider.env_key && !providerOverrides.api_key) {
       output.write(`Run this before using NPlan in CMD:\nset ${provider.env_key}=<your-key>\n`);
@@ -63,7 +69,11 @@ export async function fetchProviderModels({ provider, apiKey = '', fetchImpl = g
     headers,
     signal: AbortSignal.timeout(Number(provider.timeout_ms || 60000))
   });
-  if (!response.ok) throw new Error(`model list returned HTTP ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(`model list returned HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
   return extractModelIds(await response.json());
 }
 
@@ -86,28 +96,33 @@ export function modelListUrl(baseUrl) {
   return `${String(baseUrl || '').replace(/\/$/, '')}/models`;
 }
 
-async function chooseProvider(ui, output) {
-  const providers = listProviderChoices();
-  output.write('Providers:\n');
-  providers.forEach((provider, index) => {
-    const login = provider.env_key ? provider.env_key : 'local service';
-    output.write(`${index + 1}. ${provider.id} - ${provider.name} (${login}, default ${provider.default_model})\n`);
-  });
+async function chooseProvider(ui, output, locale) {
+  const groups = listProviderChoices();
+  const providers = [];
+  output.write(locale === 'en' ? 'Recommended cloud providers:\n' : '推荐云端 Provider：\n');
+  appendProviderGroup(output, groups.recommended, providers, locale);
+  output.write(locale === 'en' ? 'Local providers:\n' : '本地 Provider：\n');
+  appendProviderGroup(output, groups.local, providers, locale);
+  output.write(locale === 'en' ? 'More providers:\n' : '更多 Provider：\n');
+  appendProviderGroup(output, groups.more, providers, locale);
   output.write(`${providers.length + 1}. custom - Custom OpenAI-compatible endpoint\n\n`);
 
-  const answer = await ui.ask('Choose provider number or id', 'deepseek');
-  const selected = resolveProviderChoice(answer, providers);
-  if (selected) {
-    return {
-      providerId: selected.id,
-      provider: {
-        ...BUILTIN_MODEL_PROVIDERS[selected.id],
-        models_url: BUILTIN_MODEL_PROVIDERS[selected.id].models_url || modelListUrl(selected.base_url)
-      }
-    };
-  }
-  if (answer.trim().toLowerCase() !== 'custom' && answer.trim() !== String(providers.length + 1)) {
-    output.write(`Unknown provider "${answer}", switching to custom setup.\n`);
+  while (true) {
+    const answer = await ui.ask('Choose provider number or id / 请选择服务商', 'deepseek');
+    const selected = resolveProviderChoice(answer, providers);
+    if (selected) {
+      return {
+        providerId: selected.id,
+        provider: {
+          ...BUILTIN_MODEL_PROVIDERS[selected.id],
+          models_url: BUILTIN_MODEL_PROVIDERS[selected.id].models_url || modelListUrl(selected.base_url)
+        }
+      };
+    }
+    if (answer.trim().toLowerCase() === 'custom' || answer.trim() === String(providers.length + 1)) break;
+    output.write(locale === 'en'
+      ? 'Unknown choice. Please choose again.\n'
+      : '无法识别，请重新选择。\n');
   }
 
   const baseUrl = await ui.ask('Base URL, for example https://api.example.com/v1');
@@ -134,6 +149,16 @@ async function chooseProvider(ui, output) {
   };
 }
 
+function appendProviderGroup(output, group, providers, locale) {
+  for (const provider of group) {
+    providers.push(provider);
+    const login = provider.env_key ? provider.env_key : (locale === 'en' ? 'local service' : '本地服务');
+    output.write(
+      `${providers.length}. ${provider.id} - ${provider.name} (${login}, default ${provider.default_model})\n`
+    );
+  }
+}
+
 function resolveProviderChoice(answer, providers) {
   const value = answer.trim();
   const number = Number(value);
@@ -146,13 +171,26 @@ async function askApiKey(ui, output, provider) {
   if (provider.api_key_url) output.write(`API key page: ${provider.api_key_url}\n`);
   const existing = process.env[provider.env_key];
   const hint = existing ? `Press Enter to use current $env:${provider.env_key}` : 'Press Enter to skip';
-  const entered = await ui.ask(`${provider.env_key} SK/API key (${hint})`, '');
+  const entered = await askSecret(
+    { input: ui.input, output, rl: ui },
+    `${provider.env_key} SK/API key (${hint})`
+  );
   return entered || existing || '';
 }
 
-async function maybeFetchModels({ ui, output, provider, apiKey, fetchImpl }) {
+export function askSecret({ input, output, rl }, prompt) {
+  if (!input?.isTTY || !output?.isTTY || typeof input.setRawMode !== 'function') {
+    return rl.ask(prompt, '');
+  }
+  if (typeof rl.askSecret !== 'function') {
+    throw new TypeError('TTY questioner does not support secret input');
+  }
+  return rl.askSecret(prompt);
+}
+
+async function maybeFetchModels({ ui, output, provider, apiKey, fetchImpl, locale }) {
   const modelsUrl = provider.models_url || modelListUrl(provider.base_url);
-  const shouldFetch = await confirm(ui, `Fetch model list from ${modelsUrl}`, true);
+  const shouldFetch = await confirm(ui, `Fetch model list from ${modelsUrl}`, true, locale);
   if (!shouldFetch) return [];
 
   try {
@@ -168,7 +206,7 @@ async function maybeFetchModels({ ui, output, provider, apiKey, fetchImpl }) {
     output.write('No models were returned; use manual model input.\n');
     return [];
   } catch (error) {
-    output.write(`Could not fetch models: ${error.message}\n`);
+    output.write(`Could not fetch models.\n${formatModelError(error, locale)}\n`);
     output.write('Use the default model or type a model name manually.\n');
     return [];
   }
@@ -193,17 +231,33 @@ async function chooseModel(ui, output, provider, models) {
   return ui.ask('Model name', provider.default_model || 'local-model');
 }
 
-async function confirm(ui, prompt, defaultValue = false) {
+async function confirm(ui, prompt, defaultValue = false, locale = 'zh-CN') {
   const suffix = defaultValue ? 'Y/n' : 'y/N';
-  const answer = (await ui.ask(`${prompt} (${suffix})`, defaultValue ? 'Y' : 'N')).trim().toLowerCase();
+  while (true) {
+    const answer = await ui.ask(`${prompt} (${suffix})`, defaultValue ? 'Y' : 'N');
+    const parsed = parseConfirmation(answer, defaultValue);
+    if (parsed !== null) return parsed;
+    ui.output.write(locale === 'en'
+      ? 'Please answer yes or no.\n'
+      : '请输入“是”或“否”（也可输入 y/n）。\n');
+  }
+}
+
+export function parseConfirmation(value, defaultValue = false) {
+  const answer = String(value || '').trim().toLowerCase();
   if (!answer) return defaultValue;
-  return answer === 'y' || answer === 'yes';
+  if (['y', 'yes', '是', '好', '确认'].includes(answer)) return true;
+  if (['n', 'no', '否', '取消'].includes(answer)) return false;
+  return null;
 }
 
 function createQuestioner({ input, output }) {
+  if (input.isTTY && output.isTTY && typeof input.setRawMode === 'function') {
+    return createTtyQuestioner({ input, output });
+  }
   const rl = readline.createInterface({
     input,
-    terminal: Boolean(input.isTTY && output.isTTY)
+    terminal: false
   });
   const lines = [];
   const waiters = [];
@@ -220,6 +274,8 @@ function createQuestioner({ input, output }) {
   });
 
   return {
+    input,
+    output,
     ask(prompt, defaultValue = '') {
       const label = defaultValue ? `${prompt} [${defaultValue}]: ` : `${prompt}: `;
       output.write(label);
@@ -237,6 +293,144 @@ function createQuestioner({ input, output }) {
     },
     close() {
       rl.close();
+    }
+  };
+}
+
+function createTtyQuestioner({ input, output }) {
+  const lines = [];
+  const waiters = [];
+  let lineBuffer = '';
+  let closed = false;
+  let secret = null;
+  let swallowLineFeed = false;
+
+  const restoreRawMode = () => {
+    if (!secret?.raw) return;
+    secret.raw = false;
+    try {
+      input.setRawMode(false);
+    } catch {
+      // The input may already be closed; the internal state still must unwind.
+    }
+  };
+
+  const finishSecret = (error = null) => {
+    const active = secret;
+    if (!active) return;
+    restoreRawMode();
+    secret = null;
+    output.write('\n');
+    if (error) active.reject(error);
+    else active.resolve(active.value.trim());
+  };
+
+  const deliverLine = (line) => {
+    const waiter = waiters.shift();
+    if (waiter) waiter.resolve(line.trim() || waiter.defaultValue);
+    else lines.push(line.trim());
+  };
+
+  const onData = (chunk) => {
+    for (const char of chunk.toString()) {
+      if (swallowLineFeed && char === '\n') {
+        swallowLineFeed = false;
+        continue;
+      }
+      swallowLineFeed = false;
+      if (secret) {
+        if (char === '\u0003') {
+          const error = new Error('setup cancelled');
+          error.code = 'setup_cancelled';
+          finishSecret(error);
+        } else if (char === '\r' || char === '\n') {
+          swallowLineFeed = char === '\r';
+          finishSecret();
+        } else if (char === '\u007f' || char === '\b') {
+          if (secret.value) {
+            secret.value = secret.value.slice(0, -1);
+            output.write('\b \b');
+          }
+        } else {
+          secret.value += char;
+          output.write('*');
+        }
+        continue;
+      }
+      if (char === '\u0003') {
+        const waiter = waiters.shift();
+        const error = new Error('setup cancelled');
+        error.code = 'setup_cancelled';
+        if (waiter) waiter.reject(error);
+        continue;
+      }
+      if (char === '\n') {
+        deliverLine(lineBuffer);
+        lineBuffer = '';
+      } else if (char !== '\r') {
+        lineBuffer += char;
+      }
+    }
+  };
+
+  const onEnd = () => {
+    if (secret) finishSecret();
+    if (lineBuffer) deliverLine(lineBuffer);
+    lineBuffer = '';
+    closed = true;
+    while (waiters.length) {
+      const waiter = waiters.shift();
+      waiter.resolve(waiter.defaultValue);
+    }
+  };
+
+  const onError = (error) => {
+    if (secret) finishSecret(error);
+    closed = true;
+    while (waiters.length) waiters.shift().reject(error);
+  };
+
+  input.on('data', onData);
+  input.once('end', onEnd);
+  input.once('error', onError);
+
+  return {
+    input,
+    output,
+    ask(prompt, defaultValue = '') {
+      const label = defaultValue ? `${prompt} [${defaultValue}]: ` : `${prompt}: `;
+      output.write(label);
+      if (lines.length) return Promise.resolve(lines.shift() || defaultValue);
+      if (closed) return Promise.resolve(defaultValue);
+      return new Promise((resolve, reject) => waiters.push({ resolve, reject, defaultValue }));
+    },
+    askSecret(prompt) {
+      output.write(`${prompt}: `);
+      if (closed) return Promise.resolve('');
+      return new Promise((resolve, reject) => {
+        secret = { value: '', resolve, reject, raw: true };
+        try {
+          input.setRawMode(true);
+          input.resume?.();
+        } catch (error) {
+          finishSecret(error);
+        }
+      });
+    },
+    close() {
+      if (secret) {
+        const error = new Error('setup cancelled');
+        error.code = 'setup_cancelled';
+        finishSecret(error);
+      }
+      input.off('data', onData);
+      input.off('end', onEnd);
+      input.off('error', onError);
+      closed = true;
+      while (waiters.length) {
+        const waiter = waiters.shift();
+        waiter.resolve(waiter.defaultValue);
+      }
     }
   };
 }

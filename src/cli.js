@@ -21,10 +21,11 @@ import {
   resolveLocale,
   summarizeValidationIssues
 } from './i18n.js';
-import { OpenAICompatiblePlanningModel } from './model-client.js';
-import { loadModelConfig, parseConfigOverrides } from './model-config.js';
+import { OpenAICompatiblePlanningModel, isLocalModelProvider } from './model-client.js';
+import { loadModelConfig, parseConfigOverrides, resolveModelProvider } from './model-config.js';
+import { formatModelError } from './model-errors.js';
 import { initHint, renderProviderList, writeProjectModelConfig } from './model-init.js';
-import { runModelSetupWizard } from './model-wizard.js';
+import { fetchProviderModels, runModelSetupWizard } from './model-wizard.js';
 import {
   createSession,
   loadLatestSession,
@@ -57,7 +58,7 @@ Commands:
                     Show or revoke project cloud-context consent
   providers         List built-in model providers
   resume [id]       Resume a saved planning session
-  doctor            Check local CLI configuration
+  doctor [--online] Check local configuration; optionally test the models endpoint
 
 Options:
   -p, --print       Print one JSON result and exit
@@ -115,7 +116,7 @@ const HELP_ZH = `用法：${BIN_NAME} [选项] [任务]
   consent [status|revoke] 查看或撤销项目云端上下文授权
   providers              查看内置模型服务商
   resume [会话编号]      恢复已保存的规划会话
-  doctor                 检查本地配置
+  doctor [--online]      检查本地配置；可选测试模型列表接口
 
 选项：
   -p, --print            输出一次结果后退出（默认 JSON）
@@ -178,8 +179,9 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
     return 0;
   }
   if (parsed.command === 'doctor') {
-    streams.output.write(`${renderDoctor()}\n`);
-    return 0;
+    const result = await runDoctor(parsed);
+    streams.output.write(`${result.text}\n`);
+    return result.code;
   }
   if (parsed.command === 'providers') {
     streams.output.write(`${renderProviderList()}\n`);
@@ -190,7 +192,7 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
   }
   if (parsed.command === 'setup') {
     try {
-      await runModelSetupWizard({ streams });
+      await runModelSetupWizard({ streams, locale: parsed.locale });
       return 0;
     } catch (error) {
       streams.error.write(`setup failed: ${error.message}\n`);
@@ -225,7 +227,7 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
   if (!runtime && shouldRunInitialSetup({ parsed, streams, runtimeError })) {
     try {
       streams.output.write('No model is configured yet. Starting first-run setup.\n\n');
-      await runModelSetupWizard({ streams });
+      await runModelSetupWizard({ streams, locale: parsed.locale });
       runtime = makeRuntime(parsed);
       runtimeError = null;
     } catch (error) {
@@ -290,7 +292,7 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
         streams.error.write(`${cloudConsentRequiredMessage(parsed.locale)}\n`);
         return 2;
       }
-      streams.error.write(`analysis failed: ${error.message}\n`);
+      streams.error.write(`${formatModelError(error, parsed.locale)}\n`);
       return 1;
     }
   }
@@ -329,6 +331,7 @@ export function parseArgs(argv) {
   let inputFormat = 'text';
   let locale = resolveLocale();
   let allowCloudContext = false;
+  let online = false;
 
   if (COMMANDS.has(values[0])) {
     command = values.shift();
@@ -400,6 +403,9 @@ export function parseArgs(argv) {
       configValues.push(requireValue(value, values));
     } else if (value === '--allow-cloud-context') {
       allowCloudContext = true;
+    } else if (value === '--online') {
+      if (command !== 'doctor') throw new Error('--online is only supported with nplan doctor');
+      online = true;
     } else if (value === '--lang') {
       locale = resolveLocale(requireValue(value, values));
     } else if (value === '-V' || value === '--version') {
@@ -425,7 +431,8 @@ export function parseArgs(argv) {
     outputFormat,
     inputFormat,
     locale,
-    allowCloudContext
+    allowCloudContext,
+    online
   };
 }
 
@@ -708,7 +715,7 @@ async function analyzeAndRender(prompt, { state, streams, reviseExisting = false
       streams.output.write(`${cloudConsentRequiredMessage(state.locale)}\n`);
       return;
     }
-    streams.output.write(`${message(state.locale, 'error.analysisFailed', { detail: error.message })}\n`);
+    streams.output.write(`${formatModelError(error, state.locale)}\n`);
   }
 }
 
@@ -1030,23 +1037,129 @@ async function loadSessionForCli(id) {
   }
 }
 
-function renderDoctor() {
-  let config = null;
-  let configError = null;
-  try {
-    config = loadModelConfig.sync();
-  } catch (error) {
-    configError = error;
-  }
-  return [
+async function runDoctor(parsed) {
+  const locale = parsed.locale;
+  const english = locale === 'en';
+  const lines = [
     `${APP_NAME} doctor`,
     `version: ${PACKAGE_VERSION}`,
-    `node: ${process.version}`,
-    config?.model && config?.model_provider
-      ? `model: ${config.model_provider}/${config.model}`
-      : 'model: not configured',
-    configError ? `config: ${configError.message}` : 'config: ok'
-  ].join('\n');
+    `node: ${process.version}`
+  ];
+  let config;
+  let provider;
+  try {
+    config = loadModelConfig.sync({
+      configPath: parsed.configPath,
+      overrides: parsed.configOverrides
+    });
+    lines.push(english ? 'config: ok' : '配置：正常（config: ok）');
+    if (!config.model || !config.model_provider) {
+      lines.push(english ? 'model: not configured' : '模型：未配置（model: not configured）');
+      lines.push(english ? 'API key: not checked' : 'API Key：未检查（模型未配置）');
+      lines.push(english ? 'cloud-context consent: not checked' : '云端上下文授权：未检查（模型未配置）');
+      lines.push(offlineDoctorLine(locale));
+      return { code: parsed.online ? 1 : 0, text: lines.join('\n') };
+    }
+    provider = resolveModelProvider(config);
+  } catch {
+    lines.push(english ? 'config: invalid' : '配置：无效');
+    lines.push(english ? 'Next step: run nplan setup.' : '下一步：运行 nplan setup 重新配置。');
+    lines.push(offlineDoctorLine(locale));
+    return { code: 1, text: lines.join('\n') };
+  }
+
+  lines.push(english
+    ? `model: ${provider.id}/${config.model}`
+    : `模型：${provider.id}/${config.model}`);
+
+  const addressError = providerAddressError(provider);
+  if (addressError) {
+    lines.push(english ? 'provider address: invalid' : 'Provider 地址：无效');
+    lines.push(formatModelError(addressError, locale));
+    lines.push(offlineDoctorLine(locale));
+    return { code: 1, text: lines.join('\n') };
+  }
+  lines.push(english ? 'provider address: valid' : 'Provider 地址：有效');
+
+  const keyMissing = Boolean(provider.env_key && !provider.apiKey);
+  if (provider.env_key) {
+    lines.push(english
+      ? `API key: ${keyMissing ? 'missing' : 'configured'}`
+      : `API Key：${keyMissing ? '缺失' : '已配置'}`);
+    if (keyMissing) {
+      lines.push(english
+        ? `Next step: run nplan setup or set ${provider.env_key}.`
+        : `下一步：运行 nplan setup，或设置环境变量 ${provider.env_key}。`);
+    }
+  } else {
+    lines.push(english ? 'API key: not required' : 'API Key：不需要');
+  }
+
+  if (isLocalModelProvider(provider)) {
+    lines.push(english
+      ? 'cloud-context consent: not required for a local provider'
+      : '云端上下文授权：本地 Provider 不需要');
+  } else {
+    const record = await loadConsent(process.cwd());
+    const saved = consentMatchesProvider(record, provider);
+    lines.push(english
+      ? `cloud-context consent: ${saved ? 'saved (scope is checked when planning)' : 'not saved'}`
+      : `云端上下文授权：${saved ? '已保存（规划时仍会校验范围）' : '未保存'}`);
+  }
+
+  if (!parsed.online) {
+    lines.push(offlineDoctorLine(locale));
+    return { code: 0, text: lines.join('\n') };
+  }
+  if (keyMissing) {
+    lines.push(english ? 'online: not tested because the API key is missing' : '联网：未测试（API Key 缺失）');
+    return { code: 1, text: lines.join('\n') };
+  }
+
+  try {
+    await fetchProviderModels({ provider, apiKey: provider.apiKey });
+    lines.push(english
+      ? 'online: connection healthy (models endpoint only)'
+      : '联网：连接正常（仅测试模型列表接口）');
+    return { code: 0, text: lines.join('\n') };
+  } catch (error) {
+    lines.push(english ? 'online: connection failed' : '联网：连接失败');
+    lines.push(formatModelError(error, locale));
+    return { code: 1, text: lines.join('\n') };
+  }
+}
+
+function offlineDoctorLine(locale) {
+  return locale === 'en'
+    ? 'online: not tested; use nplan doctor --online to test the models endpoint'
+    : '联网：未测试联网；如需检查，请运行 nplan doctor --online（仅访问模型列表接口）';
+}
+
+function providerAddressError(provider) {
+  try {
+    for (const raw of [provider.base_url, provider.models_url].filter(Boolean)) {
+      const url = new URL(raw);
+      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+        throw new TypeError('Invalid URL');
+      }
+    }
+    return null;
+  } catch {
+    return Object.assign(new TypeError('Invalid URL'), { code: 'ERR_INVALID_URL' });
+  }
+}
+
+function consentMatchesProvider(record, provider) {
+  if (!record || record.provider_id !== provider.id) return false;
+  try {
+    const saved = new URL(record.base_url);
+    const active = new URL(provider.base_url);
+    saved.pathname = saved.pathname.replace(/\/$/, '');
+    active.pathname = active.pathname.replace(/\/$/, '');
+    return saved.toString() === active.toString();
+  } catch {
+    return false;
+  }
 }
 
 function contextForSession(session) {

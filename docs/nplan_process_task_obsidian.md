@@ -30,11 +30,15 @@ install
 
 ```cmd
 nplan setup
+nplan doctor
+nplan doctor --online
 nplan -p "设计一个本地文件整理工具，可以扫描文件、分类，并输出 Markdown 报告"
 nplan consent status
 ```
 
-`nplan setup` 是推荐的用户配置入口。它会引导选择 Provider、输入 API Key、获取模型列表并写入 `.nplan/config.toml`。
+`nplan setup` 是推荐的用户配置入口。它按推荐云端、本地、更多三组展示标准 Provider，以掩码方式读取 API Key，获取模型列表并写入 `.nplan/config.toml`；中文确认可直接输入“是”或“否”。
+
+`nplan doctor` 只做本地配置、密钥和授权检查，不联网。`nplan doctor --online` 仅访问 Provider 的 `models_url` 或 `<base_url>/models`，不会调用任务理解或计划接口。
 
 如果首次在交互式终端运行 `nplan` 时还没有模型配置，CLI 会先启动同一个 setup 向导；非交互场景仍只提示运行 `nplan setup`。
 
@@ -156,6 +160,7 @@ nplan --continue
 nplan --resume <session-id>
 nplan resume <session-id>
 nplan doctor
+nplan doctor --online
 nplan consent status
 nplan consent revoke
 nplan --allow-cloud-context -p "规划发布检查清单"
@@ -238,6 +243,7 @@ NPlan 只负责规划，不负责执行：
 | `src/agent.js` | Agent 主流程 |
 | `src/context-curator.js` | 只读上下文整理 |
 | `src/model-client.js` | OpenAI-compatible 模型调用 |
+| `src/model-errors.js` | Provider 错误分类、脱敏与下一步提示 |
 | `src/understanding.js` | TaskSpec 组合与规范化 |
 | `src/planning.js` | TaskPlan DAG 生成 |
 | `src/validation.js` | TaskSpec / TaskPlan 校验 |

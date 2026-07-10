@@ -312,6 +312,36 @@ export const BUILTIN_MODEL_PROVIDERS = {
   }
 };
 
+export const MODEL_PROVIDER_SETUP = Object.freeze({
+  recommended: Object.freeze(['deepseek', 'dashscope', 'kimi', 'zhipu', 'doubao']),
+  local: Object.freeze(['ollama', 'lmstudio']),
+  more: Object.freeze([
+    'openai',
+    'openrouter',
+    'vllm',
+    'llamacpp',
+    'localai',
+    'qianfan',
+    'tencent_hunyuan',
+    'siliconflow',
+    'minimax',
+    'baichuan',
+    'yi',
+    'stepfun',
+    'modelscope'
+  ]),
+  aliases: Object.freeze({
+    tongyi: 'dashscope',
+    qwen: 'dashscope',
+    moonshot: 'kimi',
+    bigmodel: 'zhipu',
+    glm: 'zhipu',
+    wenxin: 'qianfan',
+    volcengine_ark: 'doubao',
+    hunyuan: 'tencent_hunyuan'
+  })
+});
+
 const DEFAULT_CONFIG = {
   model: null,
   model_provider: 'openai',

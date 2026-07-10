@@ -71,15 +71,42 @@ Recommended setup:
 nplan setup
 ```
 
+The setup list is deliberately short and grouped for normal use:
+
+- recommended cloud: `deepseek`, `dashscope`, `kimi`, `zhipu`, `doubao`
+- local: `ollama`, `lmstudio`
+- more: other canonical built-ins and `custom`
+
+Compatibility aliases such as `tongyi`, `qwen`, `moonshot`, `bigmodel`,
+`glm`, `wenxin`, `volcengine_ark`, and `hunyuan` remain valid in existing
+configuration, but are not repeated in the wizard. Invalid selections are
+re-prompted instead of silently switching to custom setup. Chinese
+confirmations such as `是`、`否`、`确认`、`取消` are accepted.
+
 On a first interactive terminal launch with no configured model, `nplan` starts
 the same setup wizard before opening the planning session. Use `nplan setup`
 directly when you want to reconfigure an existing project.
 
-`nplan setup` asks for a provider, API key, and model. For built-in providers it
+`nplan setup` asks for a provider, API key, and model. In a TTY, API-key input
+is masked and raw terminal mode is restored after Enter, Ctrl-C, EOF, or an
+input error. For built-in providers it
 uses the provider's OpenAI-compatible model list URL when available. For custom
 providers, paste the model list URL or accept the default `<base_url>/models`.
 If fetching models fails, the wizard falls back to the provider default or a
-manual model name.
+manual model name and prints a classified, actionable error without echoing
+provider response bodies, URL query strings, or credentials.
+
+## Diagnostics
+
+`nplan doctor` checks only local configuration, API-key presence, provider
+address shape, and project cloud-context consent state. It explicitly reports
+that networking was not tested.
+
+`nplan doctor --online` additionally sends one request to `models_url`, or to
+`<base_url>/models` when no explicit URL is configured. It never calls
+`/chat/completions`, `/responses`, or either planning operation. Failures are
+classified as invalid address, missing credentials, timeout, rate limit, not
+found, provider error, or connection failure, with a safe next action.
 
 When an API key is entered, the wizard can save it in `.nplan/config.toml`.
 That directory is ignored by this repository's `.gitignore`, but environment

@@ -1,21 +1,17 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-import { BUILTIN_MODEL_PROVIDERS } from './model-config.js';
+import { BUILTIN_MODEL_PROVIDERS, MODEL_PROVIDER_SETUP } from './model-config.js';
 
 export const PROJECT_CONFIG_PATH = '.nplan/config.toml';
 
 export function listProviderChoices() {
-  return Object.entries(BUILTIN_MODEL_PROVIDERS).map(([id, provider]) => ({
-    id,
-    name: provider.name || id,
-    base_url: provider.base_url,
-    env_key: provider.env_key || '',
-    default_model: provider.default_model || 'local-model',
-    wire_api: provider.wire_api,
-    models_url: provider.models_url || '',
-    api_key_url: provider.api_key_url || ''
-  }));
+  return Object.fromEntries(
+    ['recommended', 'local', 'more'].map((group) => [
+      group,
+      MODEL_PROVIDER_SETUP[group].map((id) => providerChoice(id, group))
+    ])
+  );
 }
 
 export function writeProjectModelConfig({
@@ -39,12 +35,30 @@ export function writeProjectModelConfig({
 }
 
 export function renderProviderList() {
-  return listProviderChoices()
+  const choices = listProviderChoices();
+  return [...choices.recommended, ...choices.local, ...choices.more]
     .map((provider) => {
       const login = provider.env_key ? `env ${provider.env_key}` : 'local service';
       return `${provider.id}\t${provider.default_model}\t${login}\t${provider.base_url}`;
     })
     .join('\n');
+}
+
+function providerChoice(id, category) {
+  const provider = BUILTIN_MODEL_PROVIDERS[id];
+  return {
+    id,
+    canonical_id: id,
+    category,
+    recommended: category === 'recommended',
+    name: provider.name || id,
+    base_url: provider.base_url,
+    env_key: provider.env_key || '',
+    default_model: provider.default_model || 'local-model',
+    wire_api: provider.wire_api,
+    models_url: provider.models_url || '',
+    api_key_url: provider.api_key_url || ''
+  };
 }
 
 export function initHint(result) {

@@ -39,7 +39,9 @@ uninstall
 
 ## 快速开始
 
-`nplan setup` 会引导你选择 Provider、输入 API Key、从 Provider 的 OpenAI-compatible 模型列表接口获取模型选项，并写入 `.nplan/config.toml`。该目录已被 git 忽略。
+`nplan setup` 按“推荐云端、本地、更多”展示不重复的标准 Provider，引导你选择 Provider、以掩码方式输入 API Key、从 OpenAI-compatible 模型列表接口获取模型选项，并写入 `.nplan/config.toml`。该目录已被 git 忽略。输入无法识别时会重新询问，也支持“是、否、确认、取消”等中文确认方式。
+
+`nplan doctor` 默认只检查本地配置、API Key 是否存在和云端上下文授权状态，并明确提示“未测试联网”。只有显式运行 `nplan doctor --online` 时才会访问 Provider 的模型列表接口；它不会发送理解任务或生成计划的请求。
 
 如果还没有配置模型，在交互式终端里直接运行 `nplan` 会先启动同一个首次配置向导，然后再进入规划会话。`-p` 打印模式仍会清晰报错并提示先配置模型。
 
@@ -70,7 +72,7 @@ Commands:
                     查看或撤销项目云端上下文授权
   providers         列出内置模型 Provider
   resume [id]       恢复已保存的规划会话
-  doctor            检查本地 CLI 配置
+  doctor [--online] 检查本地配置；可选测试模型列表接口
 
 Options:
   -p, --print       输出一个 JSON 结果后退出
@@ -186,6 +188,7 @@ src/
   i18n.js               CLI 语言与中文命令别名
   model-client.js       OpenAI-compatible 模型客户端
   model-config.js       模型 Provider 配置
+  model-errors.js       安全的 Provider 错误分类与下一步提示
   model-init.js         项目配置写入器
   model-wizard.js       引导式模型配置向导
   okf.js                OKF 风格 Markdown 解析器

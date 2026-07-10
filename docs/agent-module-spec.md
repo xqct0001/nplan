@@ -23,8 +23,9 @@ model-list requests to provider endpoints.
 - `src/schemas.js`: field lists, minimal JSON Schema artifacts, constructors.
 - `src/understanding.js`: deterministic `TaskSpec` compiler.
 - `src/validation.js`: `TaskSpec` and `TaskPlan` guardrails.
-- `src/model-config.js`: provider config, built-ins, TOML parser, and
+- `src/model-config.js`: provider config, built-ins, canonical setup groups, TOML parser, and
   `--config key=value` overrides.
+- `src/model-errors.js`: safe provider-error classification and localized next actions.
 - `src/model-client.js`: OpenAI-compatible `responses` and `chat_completions`
   TaskSpec extraction client.
 - `src/planning.js`: planner input mapping and bounded DAG generation.
@@ -106,7 +107,8 @@ The CLI mirrors a safe subset of Claude Code's command-line interaction shape:
 - `--resume` / `-r [id]`: resume a saved local planning session
 - `resume [id]`: Codex-style session resume command
 - `--version` / `-V`: print the installed CLI version
-- `doctor`: print local CLI/config diagnostics without executing tasks
+- `doctor`: print offline local config/key/consent diagnostics without executing tasks
+- `doctor --online`: test only the configured provider models/health endpoint
 - `consent [status|revoke]`: inspect or revoke project cloud-context consent
 - `setup`: guided provider/API key/model configuration
 - first interactive TTY launch with no configured model starts the same guided
