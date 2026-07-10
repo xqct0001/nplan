@@ -152,6 +152,9 @@ test('adversarial session payload is allowlisted, redacted, persisted, and safel
         'q2=secret%253DDOUBLE-2',
         'next=https%3A%2F%2Fuser%3ANESTEDPASS-2%40nested.test%2F%3Fauthorization%3DNESTEDAUTH-2',
         'authLike=Authorization%3A%20Bearer%20AUTHLIKE-2',
+        'malformedAccess=access_token%25253DMALFORM-X%ZZ',
+        'malformedAuth=Authorization%253A%2520Bearer%2520MALFORM-A%ZZ',
+        'malformedNested=https%253A%252F%252Fuser%253APASS-M%2540nested.test%252F%253Fauthorization%253DNEST-M%ZZ',
         'note=%E4%B8%AD%E6%96%87',
         'bad=%E0%A4%A'
       ].join('&')
@@ -166,7 +169,7 @@ test('adversarial session payload is allowlisted, redacted, persisted, and safel
   const raw = await readFile(sessionFile(root, session.id), 'utf8');
   assert.doesNotMatch(
     raw,
-    /AUTH-789|ACCESS-789|REFRESH-789|APIKEY-789|CLIENT-789|CREDENTIAL-789|PASSWORD-789|EVIDENCE-789|INLINE-789|BASIC-789|TOKEN-789|WORKPLAN-(?:SECRET|API|EVIDENCE)-789|URLNESTED-2|DOUBLE-2|NESTEDPASS-2|NESTEDAUTH-2|AUTHLIKE-2|access[_-]?token|refreshToken|client[-_]?secret|apiKey|api_key|authorization|bearer|basic|passwd|credential|evidence_text/i
+    /AUTH-789|ACCESS-789|REFRESH-789|APIKEY-789|CLIENT-789|CREDENTIAL-789|PASSWORD-789|EVIDENCE-789|INLINE-789|BASIC-789|TOKEN-789|WORKPLAN-(?:SECRET|API|EVIDENCE)-789|URLNESTED-2|DOUBLE-2|NESTEDPASS-2|NESTEDAUTH-2|AUTHLIKE-2|MALFORM-X|MALFORM-A|PASS-M|NEST-M|access[_-]?token|refreshToken|client[-_]?secret|apiKey|api_key|authorization|bearer|basic|passwd|credential|evidence_text/i
   );
   assert.match(raw, /普通中文任务/);
   assert.match(raw, /topic=travel/);

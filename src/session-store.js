@@ -454,9 +454,12 @@ function redactUrlCredentials(text) {
       url.username = '';
       url.password = '';
       const safeParameters = new URLSearchParams();
-      for (const [key, value] of url.searchParams.entries()) {
-        if (!queryParameterContainsCredentials(key, value, 0)) {
-          safeParameters.append(key, value);
+      for (const [rawKey, rawValue] of rawQueryEntries(url)) {
+        if (!queryParameterContainsCredentials(rawKey, rawValue, 0)) {
+          safeParameters.append(
+            decodeQueryComponentOnce(rawKey),
+            decodeQueryComponentOnce(rawValue)
+          );
         }
       }
       url.search = safeParameters.toString();
@@ -479,8 +482,8 @@ function urlContainsCredentials(text, nestingDepth = 0) {
     try {
       const url = new URL(match[0].replace(/[),.;!?]+$/, ''));
       if (url.username || url.password) return true;
-      for (const [key, value] of url.searchParams.entries()) {
-        if (queryParameterContainsCredentials(key, value, nestingDepth)) return true;
+      for (const [rawKey, rawValue] of rawQueryEntries(url)) {
+        if (queryParameterContainsCredentials(rawKey, rawValue, nestingDepth)) return true;
       }
     } catch {
       return true;
@@ -490,12 +493,11 @@ function urlContainsCredentials(text, nestingDepth = 0) {
 }
 
 function queryParameterContainsCredentials(key, value, nestingDepth) {
-  if (
-    String(key).length > MAX_QUERY_COMPONENT_LENGTH ||
-    String(value).length > MAX_QUERY_COMPONENT_LENGTH
-  ) return true;
-  const keys = boundedDecodeVariants(key);
-  const values = boundedDecodeVariants(value);
+  const keyResult = canonicalizeQueryComponent(key);
+  const valueResult = canonicalizeQueryComponent(value);
+  if (keyResult.unsafe || valueResult.unsafe) return true;
+  const keys = keyResult.variants;
+  const values = valueResult.variants;
   if (keys.some((candidate) => sensitiveKey(candidate))) return true;
   return values.some((candidate) => {
     if (containsDirectCredentialSyntax(candidate)) return true;
@@ -503,6 +505,48 @@ function queryParameterContainsCredentials(key, value, nestingDepth) {
     if (nestingDepth >= MAX_CANONICAL_DECODE_ROUNDS) return true;
     return urlContainsCredentials(candidate, nestingDepth + 1);
   });
+}
+
+function canonicalizeQueryComponent(value) {
+  let current = String(value || '').replace(/\+/g, ' ');
+  const variants = [current];
+  if (current.length > MAX_QUERY_COMPONENT_LENGTH) return { variants, unsafe: true };
+  for (let round = 0; round < MAX_CANONICAL_DECODE_ROUNDS; round += 1) {
+    if (hasMalformedPercentEscape(current)) return { variants, unsafe: true };
+    if (!/%[0-9a-f]{2}/i.test(current)) return { variants, unsafe: false };
+    let decoded;
+    try {
+      decoded = decodeURIComponent(current);
+    } catch {
+      return { variants, unsafe: true };
+    }
+    if (decoded === current) return { variants, unsafe: false };
+    variants.push(decoded);
+    current = decoded;
+  }
+  return {
+    variants,
+    unsafe: hasMalformedPercentEscape(current) || /%[0-9a-f]{2}/i.test(current)
+  };
+}
+
+function hasMalformedPercentEscape(value) {
+  return /%(?![0-9a-f]{2})/i.test(String(value || ''));
+}
+
+function rawQueryEntries(url) {
+  const query = String(url.search || '').replace(/^\?/, '');
+  if (!query) return [];
+  return query.split('&').map((part) => {
+    const separator = part.indexOf('=');
+    return separator === -1
+      ? [part, '']
+      : [part.slice(0, separator), part.slice(separator + 1)];
+  });
+}
+
+function decodeQueryComponentOnce(value) {
+  return decodeURIComponent(String(value || '').replace(/\+/g, ' '));
 }
 
 function containsDirectCredentialSyntax(text) {
@@ -553,9 +597,12 @@ function independentUrlContainsCredentials(text, nestingDepth) {
       return true;
     }
     if (url.username || url.password) return true;
-    for (const [key, value] of url.searchParams.entries()) {
-      if (independentDecodeVariants(key).some(independentSensitiveName)) return true;
-      for (const candidate of independentDecodeVariants(value)) {
+    for (const [rawKey, rawValue] of independentRawQueryEntries(url)) {
+      const keyResult = independentCanonicalQueryComponent(rawKey);
+      const valueResult = independentCanonicalQueryComponent(rawValue);
+      if (keyResult.unsafe || valueResult.unsafe) return true;
+      if (keyResult.variants.some(independentSensitiveName)) return true;
+      for (const candidate of valueResult.variants) {
         if (/\bauthorization\b/i.test(candidate)) return true;
         if (/\b(?:bearer|basic)\s+\S+/i.test(candidate)) return true;
         if (
@@ -569,6 +616,44 @@ function independentUrlContainsCredentials(text, nestingDepth) {
     }
   }
   return false;
+}
+
+function independentCanonicalQueryComponent(value) {
+  let current = String(value || '').replace(/\+/g, ' ');
+  const variants = [current];
+  if (current.length > MAX_QUERY_COMPONENT_LENGTH) return { variants, unsafe: true };
+  for (let round = 0; round < MAX_CANONICAL_DECODE_ROUNDS; round += 1) {
+    for (let index = 0; index < current.length; index += 1) {
+      if (current[index] !== '%') continue;
+      const pair = current.slice(index + 1, index + 3);
+      if (!/^[0-9a-f]{2}$/i.test(pair)) return { variants, unsafe: true };
+      index += 2;
+    }
+    if (!current.includes('%')) return { variants, unsafe: false };
+    let decoded;
+    try {
+      decoded = decodeURIComponent(current);
+    } catch {
+      return { variants, unsafe: true };
+    }
+    if (decoded === current) return { variants, unsafe: false };
+    variants.push(decoded);
+    current = decoded;
+  }
+  return { variants, unsafe: current.includes('%') };
+}
+
+function independentRawQueryEntries(url) {
+  const raw = String(url.search || '').replace(/^\?/, '');
+  if (!raw) return [];
+  const entries = [];
+  for (const segment of raw.split('&')) {
+    const equals = segment.indexOf('=');
+    entries.push(equals < 0
+      ? [segment, '']
+      : [segment.slice(0, equals), segment.slice(equals + 1)]);
+  }
+  return entries;
 }
 
 function independentDecodeVariants(value) {
