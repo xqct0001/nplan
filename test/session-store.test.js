@@ -146,7 +146,15 @@ test('adversarial session payload is allowlisted, redacted, persisted, and safel
       'access_token=ACCESS-789',
       'secret: INLINE-789',
       'evidence_text=EVIDENCE-789',
-      'https://example.test/plan?topic=travel&refreshToken=URL-REFRESH-789'
+      [
+        'https://example.test/plan?topic=travel',
+        'q=access_token%3DURLNESTED-2',
+        'q2=secret%253DDOUBLE-2',
+        'next=https%3A%2F%2Fuser%3ANESTEDPASS-2%40nested.test%2F%3Fauthorization%3DNESTEDAUTH-2',
+        'authLike=Authorization%3A%20Bearer%20AUTHLIKE-2',
+        'note=%E4%B8%AD%E6%96%87',
+        'bad=%E0%A4%A'
+      ].join('&')
     ].join(' '),
     revision: '继续完善 client-secret=CLIENT-789 passwd=PASSWD-789 Basic BASIC-789',
     result,
@@ -158,10 +166,11 @@ test('adversarial session payload is allowlisted, redacted, persisted, and safel
   const raw = await readFile(sessionFile(root, session.id), 'utf8');
   assert.doesNotMatch(
     raw,
-    /AUTH-789|ACCESS-789|REFRESH-789|APIKEY-789|CLIENT-789|CREDENTIAL-789|PASSWORD-789|EVIDENCE-789|INLINE-789|BASIC-789|TOKEN-789|WORKPLAN-(?:SECRET|API|EVIDENCE)-789|access[_-]?token|refreshToken|client[-_]?secret|apiKey|api_key|authorization|bearer|basic|passwd|credential|evidence_text/i
+    /AUTH-789|ACCESS-789|REFRESH-789|APIKEY-789|CLIENT-789|CREDENTIAL-789|PASSWORD-789|EVIDENCE-789|INLINE-789|BASIC-789|TOKEN-789|WORKPLAN-(?:SECRET|API|EVIDENCE)-789|URLNESTED-2|DOUBLE-2|NESTEDPASS-2|NESTEDAUTH-2|AUTHLIKE-2|access[_-]?token|refreshToken|client[-_]?secret|apiKey|api_key|authorization|bearer|basic|passwd|credential|evidence_text/i
   );
   assert.match(raw, /普通中文任务/);
   assert.match(raw, /topic=travel/);
+  assert.match(raw, /note=%E4%B8%AD%E6%96%87/i);
   assert.match(raw, /保留中文步骤/);
   assert.match(raw, /保留正常目标/);
 

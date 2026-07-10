@@ -5,6 +5,8 @@ import { join, resolve } from 'node:path';
 import { normalizeUserExclusions } from './context-policy.js';
 
 const SESSION_VERSION = '2.0';
+const MAX_CANONICAL_DECODE_ROUNDS = 3;
+const MAX_QUERY_COMPONENT_LENGTH = 8192;
 
 export function createSession(options = {}) {
   const now = options.now ? options.now() : new Date();
@@ -421,7 +423,7 @@ function sensitiveKey(key) {
 function assertSafeSessionValue(value) {
   if (typeof value === 'string') {
     if (
-      containsCredentialMaterial(value) ||
+      independentCredentialMaterial(value) ||
       /(^|[^A-Za-z0-9])(?:[A-Za-z]:[\\/]|\\\\)[^\s"'<>|]+/.test(value) ||
       /\\\\[^\s"'<>|]+/.test(value) ||
       /(^|[\s"'=:(])\/(?!\/)[^\s"'<>|]+/.test(value)
@@ -451,9 +453,13 @@ function redactUrlCredentials(text) {
       const url = new URL(candidate);
       url.username = '';
       url.password = '';
-      for (const key of [...url.searchParams.keys()]) {
-        if (sensitiveKey(key)) url.searchParams.delete(key);
+      const safeParameters = new URLSearchParams();
+      for (const [key, value] of url.searchParams.entries()) {
+        if (!queryParameterContainsCredentials(key, value, 0)) {
+          safeParameters.append(key, value);
+        }
       }
+      url.search = safeParameters.toString();
       return `${url.toString()}${trailing}`;
     } catch {
       return '[redacted-url]';
@@ -463,25 +469,127 @@ function redactUrlCredentials(text) {
 
 function containsCredentialMaterial(value) {
   const text = String(value || '');
-  if (/\bauthorization\b/i.test(text)) return true;
-  if (/\b(?:bearer|basic)\s+[^\s,;]+/i.test(text)) return true;
-  if (
-    /\b(?:access[\s_-]?token|refresh[\s_-]?token|session[\s_-]?token|api[\s_-]?key|client[\s_-]?secret|secret[\s_-]?key|access[\s_-]?key|password|passwd|credentials?|evidence(?:[\s_-]?(?:text|map))?|token|secret)\b\s*[:=]/i.test(text)
-  ) return true;
-  return urlContainsCredentials(text);
+  return boundedDecodeVariants(text).some(
+    (variant) => containsDirectCredentialSyntax(variant) || urlContainsCredentials(variant)
+  );
 }
 
-function urlContainsCredentials(text) {
+function urlContainsCredentials(text, nestingDepth = 0) {
   for (const match of String(text || '').matchAll(/https?:\/\/[^\s"'<>]+/gi)) {
     try {
       const url = new URL(match[0].replace(/[),.;!?]+$/, ''));
       if (url.username || url.password) return true;
-      if ([...url.searchParams.keys()].some(sensitiveKey)) return true;
+      for (const [key, value] of url.searchParams.entries()) {
+        if (queryParameterContainsCredentials(key, value, nestingDepth)) return true;
+      }
     } catch {
       return true;
     }
   }
   return false;
+}
+
+function queryParameterContainsCredentials(key, value, nestingDepth) {
+  if (
+    String(key).length > MAX_QUERY_COMPONENT_LENGTH ||
+    String(value).length > MAX_QUERY_COMPONENT_LENGTH
+  ) return true;
+  const keys = boundedDecodeVariants(key);
+  const values = boundedDecodeVariants(value);
+  if (keys.some((candidate) => sensitiveKey(candidate))) return true;
+  return values.some((candidate) => {
+    if (containsDirectCredentialSyntax(candidate)) return true;
+    if (!/https?:\/\//i.test(candidate)) return false;
+    if (nestingDepth >= MAX_CANONICAL_DECODE_ROUNDS) return true;
+    return urlContainsCredentials(candidate, nestingDepth + 1);
+  });
+}
+
+function containsDirectCredentialSyntax(text) {
+  if (/\bauthorization\b/i.test(text)) return true;
+  if (/\b(?:bearer|basic)\s+[^\s,;]+/i.test(text)) return true;
+  return /\b(?:access[\s_-]?token|refresh[\s_-]?token|session[\s_-]?token|api[\s_-]?key|client[\s_-]?secret|secret[\s_-]?key|access[\s_-]?key|password|passwd|credentials?|evidence(?:[\s_-]?(?:text|map))?|token|secret)\b\s*[:=]/i.test(text);
+}
+
+function boundedDecodeVariants(value) {
+  const variants = [String(value || '')];
+  if (variants[0].length > MAX_QUERY_COMPONENT_LENGTH) return variants;
+  let current = variants[0];
+  for (let round = 0; round < MAX_CANONICAL_DECODE_ROUNDS; round += 1) {
+    let decoded;
+    try {
+      decoded = decodeURIComponent(current);
+    } catch {
+      break;
+    }
+    if (decoded === current) break;
+    variants.push(decoded);
+    current = decoded;
+  }
+  return variants;
+}
+
+function independentCredentialMaterial(value) {
+  const original = String(value || '');
+  if (original.length > MAX_QUERY_COMPONENT_LENGTH && /%[0-9a-f]{2}/i.test(original)) {
+    return true;
+  }
+  return independentDecodeVariants(original).some((variant) => {
+    if (/\bauthorization\b/i.test(variant)) return true;
+    if (/\b(?:bearer|basic)\s+\S+/i.test(variant)) return true;
+    if (
+      /\b(?:access[\s_-]?token|refresh[\s_-]?token|session[\s_-]?token|api[\s_-]?key|client[\s_-]?secret|secret[\s_-]?key|access[\s_-]?key|password|passwd|credentials?|evidence(?:[\s_-]?(?:text|map))?|token|secret)\b\s*[:=]/i.test(variant)
+    ) return true;
+    return independentUrlContainsCredentials(variant, 0);
+  });
+}
+
+function independentUrlContainsCredentials(text, nestingDepth) {
+  for (const match of String(text || '').matchAll(/https?:\/\/[^\s"'<>]+/gi)) {
+    let url;
+    try {
+      url = new URL(match[0].replace(/[),.;!?]+$/, ''));
+    } catch {
+      return true;
+    }
+    if (url.username || url.password) return true;
+    for (const [key, value] of url.searchParams.entries()) {
+      if (independentDecodeVariants(key).some(independentSensitiveName)) return true;
+      for (const candidate of independentDecodeVariants(value)) {
+        if (/\bauthorization\b/i.test(candidate)) return true;
+        if (/\b(?:bearer|basic)\s+\S+/i.test(candidate)) return true;
+        if (
+          /\b(?:access[\s_-]?token|refresh[\s_-]?token|session[\s_-]?token|api[\s_-]?key|client[\s_-]?secret|secret[\s_-]?key|access[\s_-]?key|password|passwd|credentials?|evidence(?:[\s_-]?(?:text|map))?|token|secret)\b\s*[:=]/i.test(candidate)
+        ) return true;
+        if (/https?:\/\//i.test(candidate)) {
+          if (nestingDepth >= MAX_CANONICAL_DECODE_ROUNDS) return true;
+          if (independentUrlContainsCredentials(candidate, nestingDepth + 1)) return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function independentDecodeVariants(value) {
+  const variants = [String(value || '')];
+  if (variants[0].length > MAX_QUERY_COMPONENT_LENGTH) return variants;
+  for (let round = 0; round < MAX_CANONICAL_DECODE_ROUNDS; round += 1) {
+    const current = variants.at(-1);
+    try {
+      const next = decodeURIComponent(current);
+      if (next === current) break;
+      variants.push(next);
+    } catch {
+      break;
+    }
+  }
+  return variants;
+}
+
+function independentSensitiveName(value) {
+  const name = String(value || '').replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+  return /(?:authorization|apikey|accesstoken|refreshtoken|sessiontoken|clientsecret|secretkey|accesskey|password|passwd|credentials?|evidence(?:text|map)?|token|secret)$/.test(name);
 }
 
 function safeText(value) {
