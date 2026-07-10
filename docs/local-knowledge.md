@@ -109,6 +109,21 @@ version, core-source paths, source priorities, source budgets, or exclusions
 invalidates the consent. Consent base URLs with credentials, query strings, or
 fragments are rejected before persistence.
 
+Before either TaskSpec or TaskPlan model request, the CLI verifies this exact
+scope. Local providers need no cloud authorization. Interactive cloud use shows
+only relative source paths and budgets, supports project-relative exclusions,
+re-runs local curation, and can remember the new fingerprint. Non-interactive
+cloud use requires saved consent or the one-shot `--allow-cloud-context` flag;
+otherwise it stops with exit code `2` and makes no model request. Use
+`nplan consent status` and `nplan consent revoke` to inspect or remove the saved
+project record.
+
+Session v2 data under `.nplan/sessions/` is separate from consent and never
+restores source evidence into the context pack. It retains a sanitized planning
+result and WorkPlan for `/todo`, `/sources`, and `/export`, while omitting
+evidence text, source contents, absolute paths, API keys, and authorization
+values. Session v1 is explicitly incompatible.
+
 ## Adding A New Concept
 
 1. Add a Markdown file under `docs/nplan_knowledge/concepts/`.

@@ -79,6 +79,8 @@ Commands:
   exec [options] [prompt]
                     Print one planning result and exit
   setup             Guided provider/API key/model setup wizard
+  consent [status|revoke]
+                    Show or revoke project cloud-context consent
   providers         List built-in model providers
   resume [id]       Resume a saved planning session
   doctor            Check local CLI configuration
@@ -97,6 +99,8 @@ Options:
   --config-path <p> Load model config TOML
   --config key=value
                     Override config with dotted keys
+  --allow-cloud-context
+                    Allow cloud context for this invocation only
   --lang <zh-CN|en> Select interface language (default: zh-CN)
   -V, --version     Show version
 ```
@@ -128,8 +132,8 @@ remain supported:
 ```
 
 `/步骤` and `/来源` are read-only views of the latest WorkPlan and its sources.
-`/revise <additional context>` replans from the latest result while keeping the
-session in planning mode. `/export` is the only interactive command that writes
+Direct text after a WorkPlan, or `/revise <additional context>`, revises the
+latest plan; `/new` clears that state. `/export` is the only interactive command that writes
 a new planning artifact; without a path it writes `.nplan/exports/<plan-id>.md`,
 and with a path it writes the requested Markdown file. The export is an
 Obsidian-friendly WorkPlan, not an executed task.
@@ -138,8 +142,20 @@ The CLI follows Claude Code's command-line interaction shape where that fits a
 planning-only module: no arguments opens a session, a quoted prompt seeds a
 session, `-p` prints one result, stdin can be piped into print mode, and
 `--continue` / `--resume` reuse local session notes. It also keeps Codex-style
-command entry points for `exec`, `resume`, and `doctor`. Session notes are
-stored under `.nplan/sessions/`, which is ignored by git.
+command entry points for `exec`, `resume`, and `doctor`. Sanitized session v2
+records are stored under `.nplan/sessions/`, which is ignored by git. They keep
+the latest result and WorkPlan so `/todo`, `/sources`, and `/export` work
+immediately after resume. Evidence text, absolute paths, API keys, authorization
+headers, and source contents are not persisted; v1 sessions are explicitly
+incompatible rather than being restored as partial state.
+
+Local providers run without a cloud-consent prompt. Cloud providers require
+authorization before either model request. Interactive mode previews bounded
+relative sources, accepts project-relative exclusions, and can remember the
+provider-and-scope fingerprint in `.nplan/consent.json`. Use
+`--allow-cloud-context` for one invocation only, and `nplan consent status` or
+`nplan consent revoke` to inspect or remove saved project consent. Non-interactive
+cloud calls without valid consent exit with code `2` before any model request.
 
 Shell execution through `!`, file editing, tool permission modes, MCP tool
 configuration, and remote-agent orchestration are intentionally unsupported.

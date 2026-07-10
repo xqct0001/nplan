@@ -66,6 +66,8 @@ Commands:
   exec [options] [prompt]
                     输出一次规划结果后退出
   setup             引导式 Provider/API Key/模型配置
+  consent [status|revoke]
+                    查看或撤销项目云端上下文授权
   providers         列出内置模型 Provider
   resume [id]       恢复已保存的规划会话
   doctor            检查本地 CLI 配置
@@ -84,6 +86,8 @@ Options:
   --config-path <p> 加载模型配置 TOML
   --config key=value
                     使用 dotted key 覆盖配置
+  --allow-cloud-context
+                    仅本次允许向云端发送上下文
   --lang <zh-CN|en> 设置界面语言，默认 zh-CN
   -V, --version     显示版本
 ```
@@ -112,9 +116,11 @@ Options:
 /退出, /结束       /exit, /quit
 ```
 
-`/步骤` 和 `/来源` 是最近一次 WorkPlan 的只读视图，用来查看行动步骤和上下文来源。`/修改 <补充说明>` 会在保留规划边界的前提下重新规划。`/导出` 是唯一会写出新规划文档的交互命令；不带路径时写入 `.nplan/exports/<plan-id>.md`，带路径时写入指定的 Markdown 文件。导出的内容是适合 Obsidian 使用的 WorkPlan，不会执行任务。
+`/步骤` 和 `/来源` 是最近一次 WorkPlan 的只读视图。已有 WorkPlan 时直接输入文字，或使用 `/修改 <补充说明>`，都会按修订处理；`/新建` 会清空该状态。`/导出` 是唯一会写出新规划文档的交互命令；不带路径时写入 `.nplan/exports/<plan-id>.md`，带路径时写入指定的 Markdown 文件。导出的内容是适合 Obsidian 使用的 WorkPlan，不会执行任务。
 
-CLI 会在不突破规划边界的前提下对齐 Claude Code 的交互形态：无参数进入会话、带引号的 prompt 作为初始任务、`-p` 单次输出、stdin 管道输入、`--continue` / `--resume` 复用本地会话记录。同时保留 Codex 风格的 `exec`、`resume`、`doctor` 命令入口。会话记录保存在 `.nplan/sessions/`，该目录已被 git 忽略。
+CLI 会在不突破规划边界的前提下对齐 Claude Code 的交互形态：无参数进入会话、带引号的 prompt 作为初始任务、`-p` 单次输出、stdin 管道输入、`--continue` / `--resume` 复用本地会话记录。同时保留 Codex 风格的 `exec`、`resume`、`doctor` 命令入口。`.nplan/sessions/` 保存经过净化的 v2 会话，并恢复最近结果与 WorkPlan，使 `/步骤`、`/来源` 和 `/导出` 在恢复后立即可用。会话不会保存证据正文、绝对路径、API Key、Authorization 或来源内容；v1 会话会明确提示不兼容，不会静默恢复成残缺状态。
+
+本地 Provider 不需要云端授权。云端 Provider 必须在任何模型请求前完成授权：交互模式先预览有限的相对来源，可排除项目相对路径并记住当前 Provider 与范围指纹；`--allow-cloud-context` 只允许本次调用。使用 `nplan consent status` 查看项目授权，使用 `nplan consent revoke` 撤销。非交互模式没有有效授权时会在零模型请求的前提下以退出码 `2` 拒绝。
 
 本项目刻意不支持 `!` shell 执行、文件编辑、工具权限模式、MCP 工具配置或远程 Agent 编排。`/export` 是明确列出的边界例外：它只会写出用户要求的 Markdown 规划产物，不会改动源码、创建真实 PR 或执行任务。
 

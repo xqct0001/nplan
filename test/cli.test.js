@@ -9,7 +9,10 @@ import { PassThrough, Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { main, parseArgs, renderInteractiveResult } from '../src/cli.js';
+import { LocalPlanningAgent } from '../src/agent.js';
+import { authorizePreparedContext, main, parseArgs, renderInteractiveResult } from '../src/cli.js';
+import { buildConsentScope, hasValidConsent, loadConsent, saveConsent } from '../src/consent.js';
+import { OpenAICompatiblePlanningModel } from '../src/model-client.js';
 import { loadModelConfig } from '../src/model-config.js';
 import { runModelSetupWizard } from '../src/model-wizard.js';
 import { deriveWorkPlan } from '../src/work-plan.js';
@@ -104,9 +107,245 @@ test('print mode can continue the latest saved planning session', async () => {
     assert.equal(second.code, 0);
     assert.equal(JSON.parse(second.stdout).status, 'planned');
     assert.equal(session.turns.length, 2);
-    assert.match(session.turns[0].prompt, /TaskSpec schema/);
-    assert.match(session.turns[1].prompt, /validation/);
+    assert.equal(session.version, '2.0');
+    assert.match(session.turns[0].request, /TaskSpec schema/);
+    assert.match(session.turns[1].request, /validation/);
   });
+});
+
+test('cloud print mode refuses before any model request without consent', async () => {
+  await withCloudModelServer(async ({ configPath, seen, cwd, env }) => {
+    const result = await runCli(
+      ['--config-path', configPath, '-p', '规划北京亲子游'],
+      '',
+      env,
+      cwd
+    );
+
+    assert.equal(result.code, 2);
+    assert.match(result.stderr, /尚未授权发送本地上下文/);
+    assert.equal(seen.length, 0);
+  });
+});
+
+test('one-shot cloud authorization permits exactly two model requests', async () => {
+  await withCloudModelServer(async ({ configPath, seen, cwd, env }) => {
+    const result = await runCli(
+      [
+        '--config-path', configPath,
+        '--allow-cloud-context',
+        '-p', '--output-format', 'summary',
+        '规划北京亲子游'
+      ],
+      '',
+      env,
+      cwd
+    );
+
+    assert.equal(result.code, 0);
+    assert.equal(seen.length, 2);
+    assert.equal(await loadConsent(cwd), null);
+
+    const refused = await runCli(
+      ['--config-path', configPath, '-p', '规划北京亲子游'],
+      '',
+      env,
+      cwd
+    );
+    assert.equal(refused.code, 2);
+    assert.equal(seen.length, 2);
+  });
+});
+
+test('local provider skips cloud consent and makes exactly two requests', async () => {
+  await withLocalModelServer(async ({ configPath, seen, cwd, env }) => {
+    const result = await runCli(
+      ['--config-path', configPath, '-p', '规划北京亲子游'],
+      '',
+      env,
+      cwd
+    );
+
+    assert.equal(result.code, 0);
+    assert.equal(seen.length, 2);
+  });
+});
+
+test('resumed session restores todo, sources, and export capability', async () => {
+  await withLocalModelServer(async ({ configPath, cwd, env }) => {
+    const first = await runCli(
+      ['--config-path', configPath],
+      '规划北京亲子游\n/退出\n',
+      env,
+      cwd
+    );
+    assert.equal(first.code, 0);
+
+    const second = await runCli(
+      ['--config-path', configPath, '--resume', 'latest'],
+      '/步骤\n/来源\n/导出\n/退出\n',
+      env,
+      cwd
+    );
+
+    assert.equal(second.code, 0);
+    assert.match(second.stdout, /已恢复规划/);
+    assert.match(second.stdout, /行动步骤/);
+    assert.match(second.stdout, /来源/);
+    assert.match(second.stdout, /已导出/);
+  });
+});
+
+test('saved project consent is reused without a prompt', async () => {
+  await withCloudModelServer(async ({ configPath, cwd, env, seen }) => {
+    await saveMatchingConsent({ configPath, cwd, env, request: '规划北京亲子游' });
+
+    const result = await runCli(
+      ['--config-path', configPath, '-p', '规划北京亲子游'],
+      '',
+      env,
+      cwd
+    );
+
+    assert.equal(result.code, 0);
+    assert.equal(seen.length, 2);
+  });
+});
+
+test('non-TTY interactive cloud mode refuses with zero model requests', async () => {
+  await withCloudModelServer(async ({ configPath, cwd, env, seen }) => {
+    const result = await runCli(
+      ['--config-path', configPath],
+      '规划北京亲子游\n/退出\n',
+      env,
+      cwd
+    );
+
+    assert.equal(result.code, 2);
+    assert.match(result.stdout, /尚未授权发送本地上下文/);
+    assert.equal(seen.length, 0);
+  });
+});
+
+test('interactive consent can inspect sources, exclude relative paths, and remember', async () => {
+  await withCloudModelServer(async ({ configPath, cwd, env, seen }) => {
+    await mkdir(join(cwd, 'docs'), { recursive: true });
+    await writeFile(join(cwd, 'README.md'), '# Public guide\n', 'utf8');
+    await writeFile(join(cwd, 'docs', 'private.md'), '# Private notes\n', 'utf8');
+    const runtime = runtimeForConfig(configPath, env);
+    const prepared = runtime.agent.prepare('规划北京亲子游', { root: cwd });
+    const output = writableBuffer();
+    output.isTTY = true;
+    const ttyInput = new PassThrough();
+    ttyInput.isTTY = true;
+    const answers = ['1', '2', 'C:\\secret.md', '2', 'docs', '3'];
+
+    const authorized = await authorizePreparedContext({
+      prepared,
+      baseContext: { root: cwd },
+      runtime,
+      streams: { input: ttyInput, output },
+      readLine: async () => answers.shift() ?? null
+    });
+
+    assert.equal(authorized.allowed, true);
+    assert.equal(authorized.persisted, true);
+    assert.deepEqual(authorized.prepared.context.context_policy.user_exclusions, ['docs']);
+    assert.equal(authorized.prepared.context.source_map.some((source) => source.relative_path.startsWith('docs/')), false);
+    assert.equal(seen.length, 0);
+    assert.match(output.text, /将发送的来源/);
+    assert.match(output.text, /排除路径无效/);
+    const saved = await loadConsent(cwd);
+    assert.deepEqual(saved.exclusions, ['docs']);
+    const scope = buildConsentScope(
+      runtime.modelClient.provider,
+      authorized.prepared.context.context_policy,
+      ['docs']
+    );
+    assert.equal(hasValidConsent(saved, scope), true);
+    ttyInput.destroy();
+  });
+});
+
+test('interactive consent cancellation makes no model request', async () => {
+  await withCloudModelServer(async ({ configPath, cwd, env, seen }) => {
+    const runtime = runtimeForConfig(configPath, env);
+    const prepared = runtime.agent.prepare('规划北京亲子游', { root: cwd });
+    const output = writableBuffer();
+    output.isTTY = true;
+    const ttyInput = new PassThrough();
+    ttyInput.isTTY = true;
+
+    const authorization = await authorizePreparedContext({
+      prepared,
+      baseContext: { root: cwd },
+      runtime,
+      streams: { input: ttyInput, output },
+      readLine: async () => '4'
+    });
+
+    assert.equal(authorization.allowed, false);
+    assert.equal(seen.length, 0);
+    ttyInput.destroy();
+  });
+});
+
+test('consent command reports status and revokes saved project consent', async () => {
+  await withCloudModelServer(async ({ configPath, cwd, env }) => {
+    await saveMatchingConsent({ configPath, cwd, env, request: '规划北京亲子游' });
+    const status = await runCli(['consent', 'status'], '', env, cwd);
+    assert.equal(status.code, 0);
+    assert.match(status.stdout, /云端上下文授权：已保存/);
+
+    const revoked = await runCli(['consent', 'revoke'], '', env, cwd);
+    assert.equal(revoked.code, 0);
+    assert.match(revoked.stdout, /已撤销/);
+    assert.equal(await loadConsent(cwd), null);
+  });
+});
+
+test('direct text revises an existing WorkPlan and new clears revision state', async () => {
+  await withLocalModelServer(async ({ configPath, cwd, env, seen }) => {
+    const revised = await runCli(
+      ['--config-path', configPath],
+      '规划北京亲子游\n补充预算上限\n/退出\n',
+      env,
+      cwd
+    );
+    assert.equal(revised.code, 0);
+    assert.equal(seen.length, 4);
+    assert.match(modelUserPrompt(seen[2].body), /Revision:\n补充预算上限/);
+
+    seen.length = 0;
+    const fresh = await runCli(
+      ['--config-path', configPath],
+      '规划北京亲子游\n/新建\n规划上海亲子游\n/退出\n',
+      env,
+      cwd
+    );
+    assert.equal(fresh.code, 0);
+    assert.equal(seen.length, 4);
+    assert.doesNotMatch(modelUserPrompt(seen[2].body), /Revision:/);
+  });
+});
+
+test('CLI reports v1 sessions as explicitly incompatible', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'nplan-v1-cli-'));
+  await mkdir(join(cwd, '.nplan', 'sessions'), { recursive: true });
+  await writeFile(
+    join(cwd, '.nplan', 'sessions', '20260710120000-old00001.json'),
+    JSON.stringify({ version: '1.0', id: '20260710120000-old00001', turns: [] }),
+    'utf8'
+  );
+  const result = await runCli(
+    ['--resume', 'latest'],
+    '',
+    { HOME: cwd, USERPROFILE: cwd, NPLAN_HOME: '', NPLAN_MODEL: '' },
+    cwd
+  );
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /不兼容的 1\.0 格式/);
+  await rm(cwd, { recursive: true, force: true });
 });
 
 test('print mode requires configured model', async () => {
@@ -960,7 +1199,44 @@ async function runCli(args, stdin = '', env = {}, cwd = process.cwd()) {
   return { code, stdout, stderr };
 }
 
+function runtimeForConfig(configPath, env) {
+  const config = loadModelConfig.sync({
+    configPath,
+    env: { ...process.env, ...env }
+  });
+  const modelClient = new OpenAICompatiblePlanningModel({ config });
+  return {
+    config,
+    modelClient,
+    agent: new LocalPlanningAgent({ modelClient })
+  };
+}
+
+async function saveMatchingConsent({ configPath, cwd, env, request }) {
+  const runtime = runtimeForConfig(configPath, env);
+  const prepared = runtime.agent.prepare(request, { root: cwd });
+  const scope = buildConsentScope(
+    runtime.modelClient.provider,
+    prepared.context.context_policy,
+    prepared.context.context_policy.user_exclusions
+  );
+  return saveConsent(cwd, scope);
+}
+
+function modelUserPrompt(body) {
+  const content = body?.messages?.[1]?.content;
+  return JSON.parse(content).request || '';
+}
+
 async function withModelServer(fn, taskSpecDraft = defaultTaskSpecDraft()) {
+  return withDraftModelServer(fn, { taskSpecDraft });
+}
+
+async function withDraftModelServer(fn, {
+  taskSpecDraft = defaultTaskSpecDraft(),
+  providerId = 'localtest',
+  contextLocation = 'local'
+} = {}) {
   const seen = [];
   const server = createServer(async (request, response) => {
     const body = await readRequest(request);
@@ -984,10 +1260,11 @@ async function withModelServer(fn, taskSpecDraft = defaultTaskSpecDraft()) {
     configPath,
     [
       'model = "semantic-test-model"',
-      'model_provider = "localtest"',
-      '[model_providers.localtest]',
+      `model_provider = "${providerId}"`,
+      `[model_providers.${providerId}]`,
       `base_url = "http://127.0.0.1:${port}/v1"`,
       'env_key = "FAKE_MODEL_KEY"',
+      `context_location = "${contextLocation}"`,
       'wire_api = "chat_completions"'
     ].join('\n'),
     'utf8'
@@ -1000,6 +1277,12 @@ async function withModelServer(fn, taskSpecDraft = defaultTaskSpecDraft()) {
     await rm(dir, { recursive: true, force: true });
   }
 }
+
+const withLocalModelServer = (fn) => withDraftModelServer(fn);
+const withCloudModelServer = (fn) => withDraftModelServer(fn, {
+  providerId: 'cloudtest',
+  contextLocation: 'cloud'
+});
 
 function defaultTaskSpecDraft() {
   return {
@@ -1073,14 +1356,12 @@ function readableFromLines(lines) {
 
 function writableBuffer() {
   let text = '';
-  return new Writable({
+  const stream = new Writable({
     write(chunk, _encoding, callback) {
       text += chunk.toString();
       callback();
     },
-    final(callback) {
-      this.text = text;
-      callback();
-    }
   });
+  Object.defineProperty(stream, 'text', { get: () => text });
+  return stream;
 }

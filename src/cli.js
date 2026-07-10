@@ -1,12 +1,20 @@
 #!/usr/bin/env node
-import { randomUUID } from 'node:crypto';
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import readline from 'node:readline';
 import { stdin as input, stdout as output } from 'node:process';
-import { dirname, extname, join, resolve } from 'node:path';
+import { dirname, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { LocalPlanningAgent } from './agent.js';
+import {
+  buildConsentScope,
+  consentPreview,
+  hasValidConsent,
+  loadConsent,
+  revokeConsent,
+  saveConsent
+} from './consent.js';
+import { normalizeUserExclusions } from './context-policy.js';
 import {
   message,
   normalizeSlashCommand,
@@ -18,6 +26,13 @@ import { loadModelConfig, parseConfigOverrides } from './model-config.js';
 import { initHint, renderProviderList, writeProjectModelConfig } from './model-init.js';
 import { runModelSetupWizard } from './model-wizard.js';
 import {
+  createSession,
+  loadLatestSession,
+  loadSession,
+  recordSessionTurn,
+  saveSession
+} from './session-store.js';
+import {
   defaultWorkPlanExportPath,
   deriveWorkPlan,
   renderWorkPlanMarkdown,
@@ -28,10 +43,9 @@ import {
 const APP_NAME = 'NPlan';
 const BIN_NAME = 'nplan';
 const SETUP_COMMAND = 'nplan setup';
-const SESSION_STORE_VERSION = '1.0';
 const OUTPUT_FORMATS = new Set(['json', 'summary', 'text']);
 const PACKAGE_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
-const COMMANDS = new Set(['doctor', 'exec', 'init', 'providers', 'resume', 'setup']);
+const COMMANDS = new Set(['consent', 'doctor', 'exec', 'init', 'providers', 'resume', 'setup']);
 
 const HELP_EN = `Usage: ${BIN_NAME} [options] [prompt]
 
@@ -39,6 +53,8 @@ Commands:
   exec [options] [prompt]
                     Print one planning result and exit
   setup             Guided provider/API key/model setup wizard
+  consent [status|revoke]
+                    Show or revoke project cloud-context consent
   providers         List built-in model providers
   resume [id]       Resume a saved planning session
   doctor            Check local CLI configuration
@@ -57,6 +73,8 @@ Options:
   --config-path <p> Load model config TOML
   --config key=value
                     Override config, supports dotted keys
+  --allow-cloud-context
+                    Allow cloud context for this invocation only
   --lang <zh-CN|en> Select interface language (default: zh-CN)
   -V, --version     Show version
   -h, --help        Show this help
@@ -94,6 +112,7 @@ const HELP_ZH = `用法：${BIN_NAME} [选项] [任务]
 命令：
   exec [选项] [任务]      输出一次规划结果后退出
   setup                  配置服务商、API Key 和模型
+  consent [status|revoke] 查看或撤销项目云端上下文授权
   providers              查看内置模型服务商
   resume [会话编号]      恢复已保存的规划会话
   doctor                 检查本地配置
@@ -110,6 +129,7 @@ const HELP_ZH = `用法：${BIN_NAME} [选项] [任务]
   --models-url <地址>    指定模型列表地址
   --config-path <路径>   读取指定配置文件
   --config key=value     临时覆盖配置
+  --allow-cloud-context  仅本次允许向云端发送上下文
   --lang <zh-CN|en>      设置界面语言（默认：简体中文）
   -V, --version          显示版本
   -h, --help             显示帮助
@@ -165,6 +185,9 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
     streams.output.write(`${renderProviderList()}\n`);
     return 0;
   }
+  if (parsed.command === 'consent') {
+    return handleConsentCommand(parsed.prompt, streams, parsed.locale);
+  }
   if (parsed.command === 'setup') {
     try {
       await runModelSetupWizard({ streams });
@@ -219,18 +242,43 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
     }
     let session = null;
     try {
-      session = parsed.continueSession || parsed.resumeSessionId ? prepareSession(parsed).session : null;
+      session = parsed.continueSession || parsed.resumeSessionId
+        ? (await prepareSession(parsed)).session
+        : null;
     } catch (error) {
       streams.error.write(`${error.message}\n`);
       return 1;
     }
     try {
-      const result = await runtime.agent.analyzeAsync(prompt, contextForSession(session));
-      const warning = recordSessionTurn(session, prompt, result);
-      if (warning) streams.error.write(`${warning}\n`);
+      const baseContext = contextForSession(session);
+      const prepared = runtime.agent.prepare(prompt, baseContext);
+      const authorization = await authorizePreparedContext({
+        prepared,
+        baseContext,
+        runtime,
+        streams,
+        locale: parsed.locale,
+        allowOnce: parsed.allowCloudContext
+      });
+      if (!authorization.allowed) return 2;
+      const result = await runtime.agent.analyzePreparedAsync(authorization.prepared, {
+        cloudContextAuthorized: authorization.allowed
+      });
+      const workPlan = deriveWorkPlan(result, {
+        sessionId: session?.id || 'print-session',
+        locale: parsed.locale
+      });
+      if (session) {
+        recordSessionTurn(session, { request: prompt, result, workPlan });
+        await saveSession(process.cwd(), session);
+      }
       streams.output.write(`${renderPrintResult(result, parsed.outputFormat, parsed.locale)}\n`);
       return 0;
     } catch (error) {
+      if (error?.code === 'cloud_context_consent_required') {
+        streams.error.write(`${cloudConsentRequiredMessage(parsed.locale)}\n`);
+        return 2;
+      }
       streams.error.write(`analysis failed: ${error.message}\n`);
       return 1;
     }
@@ -238,13 +286,20 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
 
   let sessionInfo;
   try {
-    sessionInfo = prepareSession(parsed);
+    sessionInfo = await prepareSession(parsed);
   } catch (error) {
     streams.error.write(`${error.message}\n`);
     return 1;
   }
-  await runInteractive({ runtime, runtimeError, initialPrompt: parsed.prompt, streams, locale: parsed.locale, ...sessionInfo });
-  return 0;
+  return runInteractive({
+    runtime,
+    runtimeError,
+    initialPrompt: parsed.prompt,
+    streams,
+    locale: parsed.locale,
+    allowCloudContext: parsed.allowCloudContext,
+    ...sessionInfo
+  });
 }
 
 export function parseArgs(argv) {
@@ -262,6 +317,7 @@ export function parseArgs(argv) {
   let outputFormat = 'json';
   let inputFormat = 'text';
   let locale = resolveLocale();
+  let allowCloudContext = false;
 
   if (COMMANDS.has(values[0])) {
     command = values.shift();
@@ -331,6 +387,8 @@ export function parseArgs(argv) {
     } else if (value === '--config') {
       initHasExplicitConfig = true;
       configValues.push(requireValue(value, values));
+    } else if (value === '--allow-cloud-context') {
+      allowCloudContext = true;
     } else if (value === '--lang') {
       locale = resolveLocale(requireValue(value, values));
     } else if (value === '-V' || value === '--version') {
@@ -355,7 +413,8 @@ export function parseArgs(argv) {
     resumeSessionId,
     outputFormat,
     inputFormat,
-    locale
+    locale,
+    allowCloudContext
   };
 }
 
@@ -366,9 +425,21 @@ async function runInteractive({
   streams,
   session,
   locale = 'zh-CN',
-  sessionNotice = null
+  sessionNotice = null,
+  allowCloudContext = false
 }) {
-  const state = { lastResult: null, lastWorkPlan: null, requests: 0, runtime, runtimeError, session, locale };
+  const state = {
+    lastResult: session.last_result || null,
+    lastWorkPlan: session.last_work_plan || null,
+    requests: 0,
+    runtime,
+    runtimeError,
+    session,
+    locale,
+    allowCloudContext,
+    exitCode: 0,
+    readLine: null
+  };
   const labelSeparator = locale === 'en' ? ': ' : '：';
   streams.output.write(`${message(locale, 'startup.title')}\n`);
   streams.output.write(`${message(locale, 'startup.cwd')}${labelSeparator}${process.cwd()}\n`);
@@ -377,10 +448,6 @@ async function runInteractive({
   streams.output.write(`${runtimeSummary(state)}\n`);
   streams.output.write(`${message(locale, 'startup.hint')}\n`);
 
-  if (initialPrompt) {
-    await analyzeAndRender(initialPrompt, { state, streams });
-  }
-
   const rl = readline.createInterface({
     input: streams.input,
     output: streams.output,
@@ -388,6 +455,8 @@ async function runInteractive({
     terminal: Boolean(streams.input.isTTY && streams.output.isTTY)
   });
   let closed = false;
+  const queuedLines = [];
+  const lineWaiters = [];
   const requestExit = () => {
     if (closed) return;
     streams.output.write(`\n${message(locale, 'startup.bye')}\n`);
@@ -398,21 +467,40 @@ async function runInteractive({
   };
   rl.on('close', () => {
     closed = true;
+    while (lineWaiters.length) lineWaiters.shift()(null);
     process.off('SIGINT', onProcessInterrupt);
     releaseInteractiveInput(streams.input);
+  });
+  rl.on('line', (line) => {
+    const value = String(line).trim();
+    if (lineWaiters.length) lineWaiters.shift()(value);
+    else queuedLines.push(value);
   });
   rl.on('SIGINT', requestExit);
   process.once('SIGINT', onProcessInterrupt);
 
+  state.readLine = async () => {
+    if (queuedLines.length) return queuedLines.shift();
+    if (closed) return null;
+    return new Promise((resolveLine) => lineWaiters.push(resolveLine));
+  };
+
+  if (initialPrompt) {
+    await analyzeAndRender(initialPrompt, { state, streams });
+  }
+
   rl.prompt();
-  for await (const rawLine of rl) {
-    const shouldExit = await handleInteractiveLine(rawLine.trim(), { state, streams });
+  while (true) {
+    const rawLine = await state.readLine();
+    if (rawLine === null) break;
+    const shouldExit = await handleInteractiveLine(rawLine, { state, streams });
     if (shouldExit) {
       rl.close();
       break;
     }
     if (!closed) rl.prompt();
   }
+  return state.exitCode;
 }
 
 async function handleInteractiveLine(line, { state, streams }) {
@@ -475,7 +563,7 @@ async function handleInteractiveLine(line, { state, streams }) {
     return false;
   }
   if (slash.command === '/compact') {
-    streams.output.write(`${handleCompactCommand(slash.arg, state)}\n`);
+    streams.output.write(`${await handleCompactCommand(slash.arg, state)}\n`);
     return false;
   }
   if (line === '/clear' || line === '/reset' || line === '/new') {
@@ -486,26 +574,30 @@ async function handleInteractiveLine(line, { state, streams }) {
     return false;
   }
   if (slash.command === '/resume') {
-    const loaded = loadSessionById(slash.arg || 'latest');
+    const loaded = await loadSessionForCli(slash.arg || 'latest');
     if (!loaded) {
       streams.output.write('No saved session found.\n');
+    } else if (loaded.incompatible) {
+      streams.output.write(`${incompatibleSessionMessage(loaded, state.locale)}\n`);
     } else {
-      state.lastResult = null;
-      state.lastWorkPlan = null;
+      state.lastResult = loaded.last_result || null;
+      state.lastWorkPlan = loaded.last_work_plan || null;
       state.session = loaded;
-      streams.output.write(`resumed session ${loaded.id} (${loaded.turns.length} turns)\n`);
+      streams.output.write(`${resumedSessionMessage(loaded, state.locale)}\n`);
     }
     return false;
   }
   if (line === '/continue') {
-    const loaded = loadLatestSession();
+    const loaded = await loadLatestSession(process.cwd());
     if (!loaded) {
       streams.output.write(`No saved session found. Current session: ${state.session.id}\n`);
+    } else if (loaded.incompatible) {
+      streams.output.write(`${incompatibleSessionMessage(loaded, state.locale)}\n`);
     } else {
-      state.lastResult = null;
-      state.lastWorkPlan = null;
+      state.lastResult = loaded.last_result || null;
+      state.lastWorkPlan = loaded.last_work_plan || null;
       state.session = loaded;
-      streams.output.write(`continuing session ${loaded.id} (${loaded.turns.length} turns)\n`);
+      streams.output.write(`${continuedSessionMessage(loaded, state.locale)}\n`);
     }
     return false;
   }
@@ -532,10 +624,15 @@ async function handleInteractiveLine(line, { state, streams }) {
     return false;
   }
 
-  const prompt = line.startsWith('/plan ') ? line.slice('/plan '.length).trim() : line;
+  const explicitPlan = line.startsWith('/plan ');
+  let prompt = explicitPlan ? line.slice('/plan '.length).trim() : line;
   if (!prompt) {
     streams.output.write(`${message(state.locale, 'error.planUsage')}\n`);
     return false;
+  }
+
+  if (!explicitPlan && state.lastWorkPlan && state.lastResult) {
+    prompt = revisionPrompt(state.lastResult, prompt);
   }
 
   await analyzeAndRender(prompt, { state, streams });
@@ -548,13 +645,45 @@ async function analyzeAndRender(prompt, { state, streams }) {
     return;
   }
   try {
-    state.lastResult = await state.runtime.agent.analyzeAsync(prompt, contextForSession(state.session));
+    const baseContext = contextForSession(state.session);
+    const prepared = state.runtime.agent.prepare(prompt, baseContext);
+    const authorization = await authorizePreparedContext({
+      prepared,
+      baseContext,
+      runtime: state.runtime,
+      streams,
+      locale: state.locale,
+      allowOnce: state.allowCloudContext,
+      readLine: state.readLine
+    });
+    if (!authorization.allowed) {
+      streams.output.write(`${state.locale === 'en' ? 'Cloud-context authorization cancelled.' : '已取消云端上下文授权。'}\n`);
+      return;
+    }
+    state.lastResult = await state.runtime.agent.analyzePreparedAsync(authorization.prepared, {
+      cloudContextAuthorized: authorization.allowed
+    });
     state.lastWorkPlan = deriveWorkPlan(state.lastResult, { sessionId: state.session.id, locale: state.locale });
     state.requests += 1;
-    const warning = recordSessionTurn(state.session, prompt, state.lastResult);
+    recordSessionTurn(state.session, {
+      request: prompt,
+      result: state.lastResult,
+      workPlan: state.lastWorkPlan
+    });
+    let warning = null;
+    try {
+      await saveSession(process.cwd(), state.session);
+    } catch (error) {
+      warning = `session save failed: ${error.message}`;
+    }
     streams.output.write(`${renderInteractiveResult(state.lastResult, { workPlan: state.lastWorkPlan, locale: state.locale })}\n`);
     if (warning) streams.output.write(`${warning}\n`);
   } catch (error) {
+    if (error?.code === 'cloud_context_consent_required') {
+      state.exitCode = 2;
+      streams.output.write(`${cloudConsentRequiredMessage(state.locale)}\n`);
+      return;
+    }
     streams.output.write(`${message(state.locale, 'error.analysisFailed', { detail: error.message })}\n`);
   }
 }
@@ -623,10 +752,10 @@ function makeRuntime(parsed) {
   if (!config.model) {
     throw new Error(`model configuration is required. Run "${SETUP_COMMAND}".`);
   }
+  const modelClient = new OpenAICompatiblePlanningModel({ config });
   return {
-    agent: new LocalPlanningAgent({
-      modelClient: new OpenAICompatiblePlanningModel({ config })
-    }),
+    modelClient,
+    agent: new LocalPlanningAgent({ modelClient }),
     config
   };
 }
@@ -686,16 +815,15 @@ function handleModelCommand(arg, state) {
   if (!nextModel) return state.runtime ? `model: ${state.runtime.config.model_provider}/${state.runtime.config.model}` : runtimeSummary(state);
   if (!state.runtime) return setupRequiredMessage(state.runtimeError, state.locale);
   state.runtime.config = { ...state.runtime.config, model: nextModel };
-  state.runtime.agent = new LocalPlanningAgent({
-    modelClient: new OpenAICompatiblePlanningModel({ config: state.runtime.config })
-  });
+  state.runtime.modelClient = new OpenAICompatiblePlanningModel({ config: state.runtime.config });
+  state.runtime.agent = new LocalPlanningAgent({ modelClient: state.runtime.modelClient });
   return `model: ${state.runtime.config.model_provider}/${state.runtime.config.model}`;
 }
 
-function handleCompactCommand(arg, state) {
+async function handleCompactCommand(arg, state) {
   if (!state.session.turns.length) return 'Nothing to compact yet.';
   try {
-    compactSession(state.session, arg);
+    await compactSession(state.session, arg);
     return `compacted session ${state.session.id}`;
   } catch (error) {
     return `compact failed: ${error.message}`;
@@ -711,7 +839,7 @@ function handleExportCommand(arg, state) {
     const markdown = renderWorkPlanMarkdown(state.lastWorkPlan);
     mkdirSync(dirname(target.absolute), { recursive: true });
     writeFileSync(target.absolute, markdown, 'utf8');
-    return `exported: ${target.display}`;
+    return state.locale === 'en' ? `exported: ${target.display}` : `已导出：${target.display}`;
   } catch (error) {
     return `export failed: ${error.message}`;
   }
@@ -839,48 +967,31 @@ function parseSlashLine(line) {
   return { command: match?.[1] || '', arg: (match?.[2] || '').trim() };
 }
 
-function prepareSession(parsed) {
+async function prepareSession(parsed) {
   if (parsed.resumeSessionId) {
-    const session = loadSessionById(parsed.resumeSessionId);
+    const session = await loadSessionForCli(parsed.resumeSessionId);
     if (!session) throw new Error(`session not found: ${parsed.resumeSessionId}`);
-    return { session, sessionNotice: `resumed session ${session.id} (${session.turns.length} turns)` };
+    if (session.incompatible) throw new Error(incompatibleSessionMessage(session, parsed.locale));
+    return { session, sessionNotice: resumedSessionMessage(session, parsed.locale) };
   }
   if (parsed.continueSession) {
-    const session = loadLatestSession();
-    if (session) return { session, sessionNotice: `continuing session ${session.id} (${session.turns.length} turns)` };
+    const session = await loadLatestSession(process.cwd());
+    if (session?.incompatible) {
+      throw new Error(incompatibleSessionMessage(session, parsed.locale));
+    }
+    if (session) return { session, sessionNotice: continuedSessionMessage(session, parsed.locale) };
     const created = createSession();
     return { session: created, sessionNotice: 'No saved session found; starting a new planning session.' };
   }
   return { session: createSession(), sessionNotice: null };
 }
 
-function createSession() {
-  const now = new Date().toISOString();
-  return {
-    version: SESSION_STORE_VERSION,
-    id: `${now.replace(/\D/g, '').slice(0, 14)}-${randomUUID().slice(0, 8)}`,
-    created_at: now,
-    updated_at: now,
-    turns: []
-  };
-}
-
-function sessionDir() {
-  return resolve('.nplan', 'sessions');
-}
-
-function sessionPath(id) {
-  if (!looksLikeSessionId(id) || id === 'latest') throw new Error(`invalid session id: ${id}`);
-  return join(sessionDir(), `${id}.json`);
-}
-
-function loadSessionById(id) {
-  if (!id || id === 'latest') return loadLatestSession();
+async function loadSessionForCli(id) {
+  if (!id || id === 'latest') return loadLatestSession(process.cwd());
   try {
-    const file = sessionPath(id);
-    if (!existsSync(file)) return null;
-    return readSessionFile(file, id);
-  } catch {
+    return await loadSession(process.cwd(), id);
+  } catch (error) {
+    if (error?.code === 'ENOENT' || error instanceof SyntaxError) return null;
     return null;
   }
 }
@@ -904,55 +1015,13 @@ function renderDoctor() {
   ].join('\n');
 }
 
-function loadLatestSession() {
-  const dir = sessionDir();
-  if (!existsSync(dir)) return null;
-  let latest = null;
-  for (const name of readdirSync(dir)) {
-    if (!name.endsWith('.json')) continue;
-    const file = join(dir, name);
-    try {
-      const session = readSessionFile(file, name.slice(0, -5));
-      const mtime = statSync(file).mtimeMs;
-      if (!latest || Date.parse(session.updated_at || '') > Date.parse(latest.session.updated_at || '') || mtime > latest.mtime) {
-        latest = { session, mtime };
-      }
-    } catch {
-      // Ignore malformed session files; they should not block the CLI.
-    }
-  }
-  return latest?.session || null;
-}
-
-function readSessionFile(file, fallbackId) {
-  return normalizeSession(JSON.parse(readFileSync(file, 'utf8')), fallbackId);
-}
-
-function normalizeSession(value, fallbackId) {
-  const now = new Date().toISOString();
-  return {
-    version: String(value?.version || SESSION_STORE_VERSION),
-    id: looksLikeSessionId(value?.id) && value.id !== 'latest' ? value.id : fallbackId,
-    created_at: String(value?.created_at || now),
-    updated_at: String(value?.updated_at || now),
-    turns: Array.isArray(value?.turns)
-      ? value.turns.map((turn) => ({
-          at: String(turn.at || now),
-          prompt: String(turn.prompt || ''),
-          status: String(turn.status || 'unknown'),
-          inferred_goal: String(turn.inferred_goal || ''),
-          deliverables: Array.isArray(turn.deliverables) ? turn.deliverables.map(String) : [],
-          task_count: Number(turn.task_count || 0)
-        }))
-      : []
-  };
-}
-
 function contextForSession(session) {
   if (!session?.turns?.length) return {};
   const notes = session.turns.slice(-5).map((turn, index) => {
-    const goal = turn.inferred_goal ? ` goal="${turn.inferred_goal}"` : '';
-    return `Previous planning turn ${index + 1}: status=${turn.status}${goal}; request="${turn.prompt}"`;
+    const status = turn.result?.status || 'unknown';
+    const goal = turn.result?.taskspec?.inferred_goal || '';
+    const goalText = goal ? ` goal="${goal}"` : '';
+    return `Previous planning turn ${index + 1}: status=${status}${goalText}; request="${turn.request}"`;
   });
   return {
     project_notes: notes,
@@ -960,51 +1029,215 @@ function contextForSession(session) {
   };
 }
 
-function recordSessionTurn(session, prompt, result) {
-  if (!session) return null;
-  const now = new Date().toISOString();
-  session.turns.push({
-    at: now,
-    prompt,
-    status: result.status || 'unknown',
-    inferred_goal: result.taskspec?.inferred_goal || '',
-    deliverables: (result.taskspec?.deliverables || []).map((item) => item.name).filter(Boolean),
-    task_count: result.taskplan?.tasks?.length || 0
-  });
-  session.updated_at = now;
-  try {
-    saveSession(session);
-    return null;
-  } catch (error) {
-    return `session save failed: ${error.message}`;
+async function compactSession(session, instructions = '') {
+  const last = session.turns.at(-1);
+  if (last) {
+    session.turns = [{
+      ...last,
+      revision: instructions ? `Session note: ${instructions}` : last.revision
+    }];
+  }
+  session.updated_at = new Date().toISOString();
+  await saveSession(process.cwd(), session);
+}
+
+export async function authorizePreparedContext({
+  prepared,
+  baseContext = {},
+  runtime,
+  streams,
+  locale = 'zh-CN',
+  allowOnce = false,
+  readLine = null
+}) {
+  if (!runtime?.modelClient?.requiresContextConsent) {
+    return { allowed: true, persisted: false, local: true, prepared };
+  }
+
+  const root = prepared.context.root || process.cwd();
+  let scope = buildConsentScope(
+    runtime.modelClient.provider,
+    prepared.context.context_policy,
+    prepared.context.context_policy.user_exclusions
+  );
+  if (allowOnce) {
+    return { allowed: true, persisted: false, local: false, prepared };
+  }
+
+  const saved = await loadConsent(root);
+  if (saved) {
+    let candidate = prepared;
+    if (saved.exclusions.length) {
+      candidate = runtime.agent.prepare(prepared.request, {
+        ...baseContext,
+        root,
+        context_policy: {
+          ...prepared.context.context_policy,
+          user_exclusions: saved.exclusions
+        }
+      });
+    }
+    const candidateScope = buildConsentScope(
+      runtime.modelClient.provider,
+      candidate.context.context_policy,
+      candidate.context.context_policy.user_exclusions
+    );
+    if (hasValidConsent(saved, candidateScope)) {
+      return { allowed: true, persisted: true, local: false, prepared: candidate };
+    }
+  }
+
+  if (!streams.input?.isTTY || !streams.output?.isTTY) {
+    const error = new Error('cloud_context_consent_required');
+    error.code = 'cloud_context_consent_required';
+    throw error;
+  }
+  if (typeof readLine !== 'function') {
+    throw new Error('interactive consent requires a line reader');
+  }
+
+  let preview = consentPreview(prepared.context, scope);
+  while (true) {
+    renderConsentPreview(streams.output, preview, locale);
+    const answer = await readLine();
+    if (answer === null || answer === '4') {
+      return { allowed: false, persisted: false, local: false, prepared };
+    }
+    if (answer === '1') {
+      renderConsentSources(streams.output, preview.sources, locale);
+      continue;
+    }
+    if (answer === '2') {
+      streams.output.write(locale === 'en'
+        ? 'Project-relative exclusions (comma-separated; blank clears): '
+        : '请输入要排除的项目相对路径（逗号分隔，留空表示不排除）：');
+      const rawExclusions = await readLine();
+      try {
+        const exclusions = normalizeUserExclusions(
+          String(rawExclusions || '')
+            .split(/[,，]/)
+            .map((item) => item.trim())
+            .filter(Boolean)
+        );
+        prepared = runtime.agent.prepare(prepared.request, {
+          ...baseContext,
+          root,
+          context_policy: {
+            ...prepared.context.context_policy,
+            user_exclusions: exclusions
+          }
+        });
+        scope = buildConsentScope(
+          runtime.modelClient.provider,
+          prepared.context.context_policy,
+          exclusions
+        );
+        preview = consentPreview(prepared.context, scope);
+      } catch (error) {
+        streams.output.write(locale === 'en'
+          ? `Invalid exclusion: ${error.message}\n`
+          : `排除路径无效：${error.message}\n`);
+      }
+      continue;
+    }
+    if (answer === '3') {
+      await saveConsent(root, scope);
+      return { allowed: true, persisted: true, local: false, prepared };
+    }
+    streams.output.write(locale === 'en'
+      ? 'Enter 1, 2, 3, or 4.\n'
+      : '请输入 1、2、3 或 4。\n');
   }
 }
 
-function saveSession(session) {
-  mkdirSync(sessionDir(), { recursive: true });
-  const file = sessionPath(session.id);
-  const tempFile = `${file}.${process.pid}.${randomUUID().slice(0, 8)}.tmp`;
-  writeFileSync(tempFile, `${JSON.stringify(session, null, 2)}\n`, 'utf8');
-  renameSync(tempFile, file);
+function renderConsentPreview(outputStream, preview, locale) {
+  if (locale === 'en') {
+    outputStream.write([
+      'Cloud context authorization required',
+      `Provider: ${preview.provider_id}`,
+      `Sources: ${preview.source_count}`,
+      `Maximum characters per source: ${preview.max_chars_per_source}`,
+      '1. View sources',
+      '2. Exclude paths and refresh preview',
+      '3. Remember authorization for this project and scope',
+      '4. Cancel',
+      'Choose: '
+    ].join('\n'));
+    return;
+  }
+  outputStream.write([
+    '需要授权后才能向云端模型发送本地上下文',
+    `服务商：${preview.provider_id}`,
+    `来源数量：${preview.source_count}`,
+    `每个来源最多字符数：${preview.max_chars_per_source}`,
+    '1. 查看来源',
+    '2. 排除路径并重新预览',
+    '3. 记住本项目当前范围的授权',
+    '4. 取消',
+    '请选择：'
+  ].join('\n'));
 }
 
-function compactSession(session, instructions = '') {
-  const now = new Date().toISOString();
-  const digest = [
-    'Session summary:',
-    ...session.turns.slice(-8).map((turn) => `- ${turn.status}: ${turn.inferred_goal || turn.prompt}`),
-    instructions ? `User note: ${instructions}` : null
-  ].filter(Boolean).join('\n');
-  session.turns = [{
-    at: now,
-    prompt: digest,
-    status: 'compacted',
-    inferred_goal: 'Planning session compacted',
-    deliverables: [],
-    task_count: 0
-  }];
-  session.updated_at = now;
-  saveSession(session);
+function renderConsentSources(outputStream, sources, locale) {
+  const values = Array.isArray(sources) ? sources : [];
+  const title = locale === 'en' ? 'Sources to send:' : '将发送的来源：';
+  outputStream.write(`${title}\n`);
+  outputStream.write(values.length
+    ? `${values.map((source) => `- ${source}`).join('\n')}\n`
+    : `${locale === 'en' ? '- None' : '- 无'}\n`);
+}
+
+async function handleConsentCommand(rawAction, streams, locale) {
+  const action = String(rawAction || 'status').trim().toLowerCase();
+  if (action === 'revoke') {
+    await revokeConsent(process.cwd());
+    streams.output.write(locale === 'en'
+      ? 'Project cloud-context authorization revoked.\n'
+      : '已撤销本项目的云端上下文授权。\n');
+    return 0;
+  }
+  if (action !== 'status') {
+    streams.error.write(locale === 'en'
+      ? 'Usage: nplan consent [status|revoke]\n'
+      : '用法：nplan consent [status|revoke]\n');
+    return 1;
+  }
+  const record = await loadConsent(process.cwd());
+  if (!record) {
+    streams.output.write(locale === 'en'
+      ? 'Cloud-context authorization: not saved for this project.\n'
+      : '云端上下文授权：本项目尚未保存授权。\n');
+    return 0;
+  }
+  const exclusions = record.exclusions.length ? record.exclusions.join(', ') : (locale === 'en' ? 'none' : '无');
+  streams.output.write(locale === 'en'
+    ? `Cloud-context authorization: saved\nProvider: ${record.provider_id}\nConfirmed: ${record.confirmed_at}\nExclusions: ${exclusions}\n`
+    : `云端上下文授权：已保存\n服务商：${record.provider_id}\n确认时间：${record.confirmed_at}\n排除路径：${exclusions}\n`);
+  return 0;
+}
+
+function cloudConsentRequiredMessage(locale) {
+  return locale === 'en'
+    ? 'Local context has not been authorized for this cloud provider. Use --allow-cloud-context for this invocation or run interactively to review and remember authorization.'
+    : '尚未授权发送本地上下文到云端模型。可为本次命令添加 --allow-cloud-context，或在交互模式中预览并确认。';
+}
+
+function resumedSessionMessage(session, locale) {
+  return locale === 'en'
+    ? `restored plan from session ${session.id} (${session.turns.length} turns)`
+    : `已恢复规划：${session.id}（${session.turns.length} 轮）`;
+}
+
+function continuedSessionMessage(session, locale) {
+  return locale === 'en'
+    ? `continuing restored plan ${session.id} (${session.turns.length} turns)`
+    : `已继续规划：${session.id}（${session.turns.length} 轮）`;
+}
+
+function incompatibleSessionMessage(session, locale) {
+  return locale === 'en'
+    ? `Session ${session.id} uses incompatible format ${session.version}; start a new session.`
+    : `会话 ${session.id} 使用不兼容的 ${session.version} 格式，请新建会话。`;
 }
 
 function isMainModule() {

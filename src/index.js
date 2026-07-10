@@ -29,6 +29,15 @@ export {
   makeTask
 } from './schemas.js';
 export { makeEvidenceItem, makeSourceRef } from './provenance.js';
+export {
+  createSession,
+  loadLatestSession,
+  loadSession,
+  recordSessionTurn,
+  sanitizePlanningResult,
+  saveSession,
+  sessionFile
+} from './session-store.js';
 export { extractMarkdownLinks, knowledgeMetadataForText, parseKnowledgeDocument } from './okf.js';
 export { compileTaskSpec, composeTaskSpecFromModel, stripPromptArtifacts } from './understanding.js';
 export { validateTaskPlan, validateTaskSpec, validateWorkPlan } from './validation.js';

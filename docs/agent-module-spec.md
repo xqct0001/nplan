@@ -42,6 +42,8 @@ model-list requests to provider endpoints.
 - `src/conflicts.js`: request/context conflict detection, including
   irreversible action checkpoints and evidence-source consistency.
 - `src/cli.js`: Claude-like planning command-line interaction layer.
+- `src/session-store.js`: atomic, sanitized session v2 persistence and resume
+  hydration for the latest planning result and WorkPlan.
 - `src/index.js`: public exports.
 
 ## Required TaskSpec Checks
@@ -99,11 +101,13 @@ The CLI mirrors a safe subset of Claude Code's command-line interaction shape:
 - `--output-format json|summary|text`: choose print-mode rendering
 - `--input-format text`: accept text from argv or stdin
 - `--lang zh-CN|en`: use Simplified Chinese by default or opt into English
+- `--allow-cloud-context`: authorize cloud context for this invocation only
 - `--continue` / `-c`: continue the latest local planning session
 - `--resume` / `-r [id]`: resume a saved local planning session
 - `resume [id]`: Codex-style session resume command
 - `--version` / `-V`: print the installed CLI version
 - `doctor`: print local CLI/config diagnostics without executing tasks
+- `consent [status|revoke]`: inspect or revoke project cloud-context consent
 - `setup`: guided provider/API key/model configuration
 - first interactive TTY launch with no configured model starts the same guided
   setup before opening the planning session
@@ -123,8 +127,10 @@ The CLI mirrors a safe subset of Claude Code's command-line interaction shape:
   `/revise <additional context>` replans from that latest result with extra
   user context; `/export [path]` writes an Obsidian-friendly Markdown planning
   note either to `.nplan/exports/<plan-id>.md` or to the user-specified path
-- local session notes are stored under `.nplan/sessions/` and contain planning
-  prompts, statuses, goals, deliverable names, and task counts only
+- sanitized session v2 records are stored atomically under `.nplan/sessions/`;
+  they restore `last_result` and `last_work_plan`, but exclude evidence text,
+  source contents, absolute paths, API keys, and authorization values
+- session v1 is explicitly incompatible and is never silently normalized to v2
 - config overrides use `--config key=value`; legacy `-c key=value` remains
   accepted for compatibility
 
@@ -221,6 +227,13 @@ changes invalidate the saved consent. The fingerprint covers root files, scan
 directories, extension and ignore rules, parser version, core-source ranking,
 source priorities, budgets, and exclusions. Consent base URLs cannot contain
 credentials, query strings, or fragments.
+
+The CLI checks this consent before either model operation. Local providers skip
+the prompt. Interactive cloud use shows a relative-path preview, can re-curate
+after project-relative exclusions, and can remember the resulting scope.
+Non-interactive cloud use without saved consent or `--allow-cloud-context`
+returns exit code `2` before any provider request. Direct interactive text with
+an existing WorkPlan is treated as a revision; `/new` clears that state.
 
 ## OKF-Style Local Knowledge
 
