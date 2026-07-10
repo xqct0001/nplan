@@ -9,9 +9,11 @@ import { PassThrough, Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { main, parseArgs } from '../src/cli.js';
+import { main, parseArgs, renderInteractiveResult } from '../src/cli.js';
 import { loadModelConfig } from '../src/model-config.js';
 import { runModelSetupWizard } from '../src/model-wizard.js';
+import { deriveWorkPlan } from '../src/work-plan.js';
+import { clarificationResult, plannedChineseResult } from './fixtures.js';
 
 const NODE = process.execPath;
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
@@ -59,7 +61,9 @@ test('print mode can render a concise summary output', async () => {
     );
 
     assert.equal(result.code, 0);
-    assert.match(result.stdout, /status: planned/);
+    assert.match(result.stdout, /结论/);
+    assert.match(result.stdout, /行动步骤/);
+    assert.doesNotMatch(result.stdout, /status: planned/);
     assert.doesNotMatch(result.stdout, /Full JSON: \/json/);
     assert.throws(() => JSON.parse(result.stdout));
   });
@@ -74,7 +78,7 @@ test('exec command is an alias for one-shot print mode', async () => {
     );
 
     assert.equal(result.code, 0);
-    assert.match(result.stdout, /status: planned/);
+    assert.match(result.stdout, /结论/);
     assert.equal(result.stderr, '');
   });
 });
@@ -127,7 +131,7 @@ test('print mode requires configured model', async () => {
 });
 
 test('help shows Claude-like command shapes and slash commands', async () => {
-  const result = await runCli(['--help']);
+  const result = await runCli(['--lang', 'en', '--help']);
 
   assert.equal(result.code, 0);
   assert.match(result.stdout, /nplan \[options\] \[prompt\]/);
@@ -157,6 +161,74 @@ test('help shows Claude-like command shapes and slash commands', async () => {
   assert.match(result.stdout, /\/json/);
 });
 
+test('help and startup are Chinese by default with English opt-in', async () => {
+  const zh = await runCli(['--help']);
+  const en = await runCli(['--lang', 'en', '--help']);
+
+  assert.equal(zh.code, 0);
+  assert.match(zh.stdout, /用法：nplan/);
+  assert.match(zh.stdout, /\/帮助/);
+  assert.match(zh.stdout, /--lang <zh-CN\|en>/);
+  assert.equal(en.code, 0);
+  assert.match(en.stdout, /Usage: nplan/);
+  assert.match(en.stdout, /\/help/);
+});
+
+test('invalid locale is rejected with a clear localized error', async () => {
+  const result = await runCli(['--lang', 'fr', '--help']);
+
+  assert.equal(result.code, 1);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /不支持的语言：fr/);
+});
+
+test('Chinese slash aliases work in the interactive session', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-zh-alias-'));
+  const result = await runCli(
+    [],
+    '/帮助\n/退出\n',
+    { HOME: dir, USERPROFILE: dir, NPLAN_HOME: '', NPLAN_MODEL: '' },
+    dir
+  );
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /NPlan 规划助手/);
+  assert.match(result.stdout, /模型：未配置/);
+  assert.match(result.stdout, /请先运行 nplan setup/);
+  assert.match(result.stdout, /用法：nplan/);
+  assert.match(result.stdout, /再见/);
+  assert.doesNotMatch(result.stdout, /未知命令/);
+  assert.doesNotMatch(result.stdout, /model: not configured|Model setup required/);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('interactive result shows conclusion steps acceptance and next action without raw fields', () => {
+  const result = plannedChineseResult();
+  const text = renderInteractiveResult(result, {
+    workPlan: deriveWorkPlan(result, { locale: 'zh-CN' }),
+    locale: 'zh-CN'
+  });
+
+  assert.match(text, /结论/);
+  assert.match(text, /行动步骤/);
+  assert.match(text, /验收标准/);
+  assert.match(text, /下一步/);
+  assert.doesNotMatch(text, /status:|deliverables:|T1:|Full JSON|plan_id|session_id/);
+});
+
+test('interactive clarification is concise and contains no empty plan sections', () => {
+  const result = clarificationResult();
+  const text = renderInteractiveResult(result, {
+    workPlan: deriveWorkPlan(result, { locale: 'zh-CN' }),
+    locale: 'zh-CN'
+  });
+
+  assert.match(text, /^需要确认/m);
+  assert.match(text, /儿童年龄是多少？/);
+  assert.match(text, /下一步/);
+  assert.doesNotMatch(text, /行动步骤|status:|Full JSON/);
+});
+
 test('argument parser supports Claude Code session flags and legacy config override', () => {
   const continued = parseArgs(['-c', 'plan the interface']);
   assert.equal(continued.continueSession, true);
@@ -174,6 +246,9 @@ test('argument parser supports Claude Code session flags and legacy config overr
   assert.equal(configured.continueSession, false);
   assert.equal(configured.configOverrides.model, 'qwen-plus');
   assert.equal(configured.configOverrides.model_provider, 'dashscope');
+
+  assert.equal(parseArgs([]).locale, 'zh-CN');
+  assert.equal(parseArgs(['--lang', 'en']).locale, 'en');
 });
 
 test('guided setup has one public command', async () => {
@@ -410,7 +485,7 @@ test('setup result can be loaded as the project model config', async () => {
 
 test('interactive session supports Claude-like session commands and planning boundaries', async () => {
   await withModelServer(async ({ configPath, env, cwd }) => {
-    const child = spawn(NODE, [CLI, '--config-path', configPath], {
+    const child = spawn(NODE, [CLI, '--lang', 'en', '--config-path', configPath], {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd,
       env: { ...process.env, ...env }
@@ -434,7 +509,7 @@ test('interactive session supports Claude-like session commands and planning bou
     child.stdin.write('/todo\n');
     child.stdin.write('/revise keep the first version single-file for Obsidian\n');
     child.stdin.write('/export\n');
-    child.stdin.write('/export docs/plans/cli-pr-plan.md\n');
+    child.stdin.write('/export docs/plans/cli-work-plan.md\n');
     child.stdin.write('/compact keep provider notes\n');
     child.stdin.write('/json\n');
     child.stdin.write('!echo unsafe\n');
@@ -448,24 +523,27 @@ test('interactive session supports Claude-like session commands and planning bou
     const [code] = await once(child, 'close');
     const defaultExports = await readdir(join(cwd, '.nplan', 'exports'));
     const defaultMarkdown = await readFile(join(cwd, '.nplan', 'exports', defaultExports[0]), 'utf8');
-    const customMarkdown = await readFile(join(cwd, 'docs', 'plans', 'cli-pr-plan.md'), 'utf8');
+    const customMarkdown = await readFile(join(cwd, 'docs', 'plans', 'cli-work-plan.md'), 'utf8');
 
     assert.equal(code, 0);
     assert.equal(stderr, '');
     assert.match(stdout, /NPlan/);
-    assert.match(stdout, /session: /);
+    assert.match(stdout, /cwd:/);
+    assert.match(stdout, /session:/);
     assert.match(stdout, /model: localtest\/semantic-test-model/);
     assert.match(stdout, /model: localtest\/alternate-model/);
-    assert.match(stdout, /status: planned/);
+    assert.match(stdout, /Conclusion/);
     assert.match(stdout, /context: sources=/);
-    assert.match(stdout, /sources:/);
-    assert.match(stdout, /todo:/);
-    assert.match(stdout, /- \[ \] T1 Produce validated planning deliverables/);
+    assert.match(stdout, /Sources:/);
+    assert.match(stdout, /Action Steps:/);
+    assert.match(stdout, /- \[ \] Produce validated planning deliverables/);
+    assert.match(stdout, /Acceptance:/);
+    assert.doesNotMatch(stdout, /Acceptance：/);
     assert.match(stdout, /revised plan:/);
     assert.match(stdout, /exported: \.nplan\/exports\//);
-    assert.match(stdout, /exported: docs\/plans\/cli-pr-plan\.md/);
+    assert.match(stdout, /exported: docs\/plans\/cli-work-plan\.md/);
     assert.match(stdout, /compacted session/);
-    assert.match(stdout, /Full JSON: \/json/);
+    assert.doesNotMatch(stdout, /Full JSON: \/json/);
     assert.match(stdout, /"status": "planned"/);
     assert.match(stdout, /Shell execution is not available in NPlan/);
     assert.match(stdout, /Model setup is available as nplan setup/);
@@ -474,18 +552,18 @@ test('interactive session supports Claude-like session commands and planning bou
     assert.match(stdout, /Unknown command\. Use \/help for commands\./);
     assert.match(stdout, /bye/);
     assert.equal(defaultExports.length, 1);
-    assert.match(defaultMarkdown, /^---\ntype: nplan-pr-plan/m);
-    assert.match(defaultMarkdown, /## Todo/);
+    assert.match(defaultMarkdown, /^---\ntype: nplan-work-plan/m);
+    assert.match(defaultMarkdown, /## Action Steps/);
     assert.match(defaultMarkdown, /```mermaid/);
-    assert.match(defaultMarkdown, /\[\[Task T1 - /);
-    assert.match(customMarkdown, /## PR Draft/);
+    assert.doesNotMatch(defaultMarkdown, /\[\[Task T1 - /);
+    assert.match(customMarkdown, /## Conclusion/);
   });
 });
 
 test('interactive revise explains when there is no previous plan', async () => {
   await withModelServer(async ({ configPath, env }) => {
     const result = await runCli(
-      ['--config-path', configPath],
+      ['--lang', 'en', '--config-path', configPath],
       '/revise make the plan Obsidian friendly\n/exit\n',
       env
     );
@@ -540,7 +618,7 @@ test('interactive session exits on one terminal Ctrl+C', async () => {
 
     try {
       process.chdir(cwd);
-      const code = await main(['--config-path', configPath], { input, output, error });
+      const code = await main(['--lang', 'en', '--config-path', configPath], { input, output, error });
 
       assert.equal(code, 0);
       assert.equal(stderr, '');
@@ -596,7 +674,7 @@ test('first interactive TTY launch runs setup then opens configured session', as
 
   try {
     process.chdir(dir);
-    const code = await main([], { input, output, error });
+    const code = await main(['--lang', 'en'], { input, output, error });
     const config = await readFile(join(dir, '.nplan', 'config.toml'), 'utf8');
 
     assert.equal(code, 0);
@@ -619,7 +697,7 @@ test('first interactive TTY launch runs setup then opens configured session', as
 test('interactive session starts before model setup and guides init', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'nplan-no-model-interactive-'));
   const result = await runCli(
-    [],
+    ['--lang', 'en'],
     '/status\n/exit\n',
     {
       HOME: dir,
@@ -672,7 +750,7 @@ test('interactive resume ignores corrupt session files without crashing', async 
   await writeFile(join(sessionDir, '20260707120000-badbad12.json'), '{broken', 'utf8');
 
   const result = await runCli(
-    [],
+    ['--lang', 'en'],
     '/resume 20260707120000-badbad12\n/exit\n',
     {
       HOME: dir,

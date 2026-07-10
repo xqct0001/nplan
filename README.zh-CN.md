@@ -51,6 +51,12 @@ nplan "规划发布检查清单"
 nplan -p "设计一个本地文件整理工具，可以扫描文件、分类，并输出 Markdown 报告"
 ```
 
+界面默认使用简体中文；如需英文，添加 `--lang en`：
+
+```cmd
+nplan --lang en "Plan the release checklist"
+```
+
 ## CLI
 
 ```text
@@ -78,34 +84,35 @@ Options:
   --config-path <p> 加载模型配置 TOML
   --config key=value
                     使用 dotted key 覆盖配置
+  --lang <zh-CN|en> 设置界面语言，默认 zh-CN
   -V, --version     显示版本
 ```
 
 旧的 `-c key=value` 配置覆盖仍然兼容；单独使用 `-c` 时会按 Claude Code 的习惯表示 `--continue`。
 
-交互命令：
+交互命令默认使用中文，英文命令仍然兼容：
 
 ```text
-/help
-/providers
-/status
-/config, /settings
-/model [name]
-/context
-/sources
-/todo
-/revise <additional context>
-/export [path]
-/plan <prompt>
-/json
-/compact [note]
-/clear, /reset, /new
-/continue
-/resume [id]
-/exit, /quit
+/帮助              /help
+/服务商            /providers
+/状态              /status
+/配置, /设置       /config, /settings
+/模型 [名称]       /model [name]
+/上下文            /context
+/来源              /sources
+/步骤              /todo
+/修改 <补充说明>   /revise <text>
+/导出 [路径]       /export [path]
+/规划 <任务>       /plan <prompt>
+/完整              /json
+/压缩 [备注]       /compact [note]
+/清除, /重置, /新建 /clear, /reset, /new
+/继续              /continue
+/恢复 [会话编号]   /resume [id]
+/退出, /结束       /exit, /quit
 ```
 
-`/todo` 和 `/sources` 是最近一次规划结果的只读视图，用来查看 PR 规划清单和上下文证据。`/revise <additional context>` 会在保留规划边界的前提下，基于上一版结果补充上下文后重新规划。`/export` 是唯一会写出新规划文档的交互命令；不带路径时会写入 `.nplan/exports/<plan-id>.md`，带路径时会写入指定的 Markdown 文件。导出的内容是适合 Obsidian 使用的规划笔记，不会创建真实 PR，也不会执行任务。
+`/步骤` 和 `/来源` 是最近一次 WorkPlan 的只读视图，用来查看行动步骤和上下文来源。`/修改 <补充说明>` 会在保留规划边界的前提下重新规划。`/导出` 是唯一会写出新规划文档的交互命令；不带路径时写入 `.nplan/exports/<plan-id>.md`，带路径时写入指定的 Markdown 文件。导出的内容是适合 Obsidian 使用的 WorkPlan，不会执行任务。
 
 CLI 会在不突破规划边界的前提下对齐 Claude Code 的交互形态：无参数进入会话、带引号的 prompt 作为初始任务、`-p` 单次输出、stdin 管道输入、`--continue` / `--resume` 复用本地会话记录。同时保留 Codex 风格的 `exec`、`resume`、`doctor` 命令入口。会话记录保存在 `.nplan/sessions/`，该目录已被 git 忽略。
 
@@ -146,10 +153,10 @@ NPlan 采用 Knowledge Catalog / OKF 中适合本地项目的部分：
 ## 作为库使用
 
 ```js
-import { LocalPlanningAgent, OpenAICompatibleTaskModel, loadModelConfig } from './src/index.js';
+import { LocalPlanningAgent, OpenAICompatiblePlanningModel, loadModelConfig } from './src/index.js';
 
 const config = await loadModelConfig();
-const modelClient = new OpenAICompatibleTaskModel({ config });
+const modelClient = new OpenAICompatiblePlanningModel({ config });
 const agent = new LocalPlanningAgent({ modelClient });
 
 const result = await agent.analyzeAsync(
@@ -170,6 +177,7 @@ src/
   context-curator.js    来源排序与证据包生成
   context-policy.js     上下文发现默认策略
   conflicts.js          请求/上下文冲突检测
+  i18n.js               CLI 语言与中文命令别名
   model-client.js       OpenAI-compatible 模型客户端
   model-config.js       模型 Provider 配置
   model-init.js         项目配置写入器
@@ -180,6 +188,7 @@ src/
   schemas.js            Schema 产物与构造函数
   understanding.js      TaskSpec 归一化
   validation.js         TaskSpec 与 TaskPlan 校验器
+  work-plan.js          面向用户的通用 WorkPlan
 
 docs/
   agent-design-prompt-lessons.md

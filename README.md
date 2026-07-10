@@ -64,6 +64,12 @@ nplan "Plan the release checklist"
 nplan -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
 ```
 
+The interface uses Simplified Chinese by default. Add `--lang en` for English:
+
+```cmd
+nplan --lang en "Plan the release checklist"
+```
+
 ## CLI
 
 ```text
@@ -91,40 +97,42 @@ Options:
   --config-path <p> Load model config TOML
   --config key=value
                     Override config with dotted keys
+  --lang <zh-CN|en> Select interface language (default: zh-CN)
   -V, --version     Show version
 ```
 
 Legacy `-c key=value` config overrides still work, but `-c` by itself now
 matches Claude Code and means `--continue`.
 
-Interactive commands:
+Interactive commands use concise Chinese aliases by default; the English forms
+remain supported:
 
 ```text
-/help
-/providers
-/status
-/config, /settings
-/model [name]
-/context
-/sources
-/todo
-/revise <additional context>
-/export [path]
-/plan <prompt>
-/json
-/compact [note]
-/clear, /reset, /new
-/continue
-/resume [id]
-/exit, /quit
+/帮助              /help
+/服务商            /providers
+/状态              /status
+/配置, /设置       /config, /settings
+/模型 [name]       /model [name]
+/上下文            /context
+/来源              /sources
+/步骤              /todo
+/修改 <text>       /revise <text>
+/导出 [path]       /export [path]
+/规划 <prompt>     /plan <prompt>
+/完整              /json
+/压缩 [note]       /compact [note]
+/清除, /重置, /新建 /clear, /reset, /new
+/继续              /continue
+/恢复 [id]         /resume [id]
+/退出, /结束       /exit, /quit
 ```
 
-`/todo` and `/sources` are read-only views of the latest planning result.
+`/步骤` and `/来源` are read-only views of the latest WorkPlan and its sources.
 `/revise <additional context>` replans from the latest result while keeping the
 session in planning mode. `/export` is the only interactive command that writes
 a new planning artifact; without a path it writes `.nplan/exports/<plan-id>.md`,
 and with a path it writes the requested Markdown file. The export is an
-Obsidian-friendly planning note, not a submitted PR or executed task.
+Obsidian-friendly WorkPlan, not an executed task.
 
 The CLI follows Claude Code's command-line interaction shape where that fits a
 planning-only module: no arguments opens a session, a quoted prompt seeds a
@@ -189,10 +197,10 @@ project's own sources.
 ## Library Usage
 
 ```js
-import { LocalPlanningAgent, OpenAICompatibleTaskModel, loadModelConfig } from './src/index.js';
+import { LocalPlanningAgent, OpenAICompatiblePlanningModel, loadModelConfig } from './src/index.js';
 
 const config = await loadModelConfig();
-const modelClient = new OpenAICompatibleTaskModel({ config });
+const modelClient = new OpenAICompatiblePlanningModel({ config });
 const agent = new LocalPlanningAgent({ modelClient });
 
 const result = await agent.analyzeAsync(
@@ -213,6 +221,7 @@ src/
   context-curator.js    source ranking and evidence pack builder
   context-policy.js     context discovery defaults
   conflicts.js          request/context conflict detection
+  i18n.js               CLI locales and slash-command aliases
   model-client.js       OpenAI-compatible model client
   model-config.js       model provider configuration
   model-init.js         project config writer
@@ -223,6 +232,7 @@ src/
   schemas.js            schema artifacts and constructors
   understanding.js      TaskSpec normalization
   validation.js         TaskSpec and TaskPlan validators
+  work-plan.js          user-facing generic WorkPlan
 
 docs/
   agent-design-prompt-lessons.md

@@ -7,17 +7,18 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { LocalPlanningAgent } from './agent.js';
+import { message, normalizeSlashCommand, resolveLocale } from './i18n.js';
 import { OpenAICompatiblePlanningModel } from './model-client.js';
 import { loadModelConfig, parseConfigOverrides } from './model-config.js';
 import { initHint, renderProviderList, writeProjectModelConfig } from './model-init.js';
-import {
-  defaultPrPlanExportPath,
-  derivePrPlan,
-  renderObsidianPrPlan,
-  renderPrPlanSources,
-  renderPrPlanTodo
-} from './pr-plan.js';
 import { runModelSetupWizard } from './model-wizard.js';
+import {
+  defaultWorkPlanExportPath,
+  deriveWorkPlan,
+  renderWorkPlanMarkdown,
+  renderWorkPlanSources,
+  renderWorkPlanTodo
+} from './work-plan.js';
 
 const APP_NAME = 'NPlan';
 const BIN_NAME = 'nplan';
@@ -27,7 +28,7 @@ const OUTPUT_FORMATS = new Set(['json', 'summary', 'text']);
 const PACKAGE_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const COMMANDS = new Set(['doctor', 'exec', 'init', 'providers', 'resume', 'setup']);
 
-const HELP = `Usage: ${BIN_NAME} [options] [prompt]
+const HELP_EN = `Usage: ${BIN_NAME} [options] [prompt]
 
 Commands:
   exec [options] [prompt]
@@ -51,6 +52,7 @@ Options:
   --config-path <p> Load model config TOML
   --config key=value
                     Override config, supports dotted keys
+  --lang <zh-CN|en> Select interface language (default: zh-CN)
   -V, --version     Show version
   -h, --help        Show this help
 
@@ -63,7 +65,7 @@ Interactive commands:
   /model [name]     Show or switch the in-memory model for this session
   /context          Show the last context curation summary
   /sources         Show source and evidence details for the last result
-  /todo            Show the PR planning todo list for the last result
+  /todo            Show the action steps for the last result
   /revise <text>   Replan using the last result plus additional context
   /export [path]   Export the last plan as Obsidian-friendly Markdown
   /plan <prompt>    Analyze a prompt and show a planning summary
@@ -82,6 +84,58 @@ Notes:
   Use --config key=value for config overrides. The legacy "-c key=value" form still works.
   Shell execution with ! is intentionally unsupported.`;
 
+const HELP_ZH = `用法：${BIN_NAME} [选项] [任务]
+
+命令：
+  exec [选项] [任务]      输出一次规划结果后退出
+  setup                  配置服务商、API Key 和模型
+  providers              查看内置模型服务商
+  resume [会话编号]      恢复已保存的规划会话
+  doctor                 检查本地配置
+
+选项：
+  -p, --print            输出一次结果后退出（默认 JSON）
+  --output-format <json|summary|text>
+                         设置输出格式
+  --input-format text    从参数或标准输入读取文本
+  -c, --continue         继续最近的会话
+  -r, --resume [编号]    恢复指定或最近的会话
+  --model <名称>         指定模型
+  --provider <编号>      指定模型服务商
+  --models-url <地址>    指定模型列表地址
+  --config-path <路径>   读取指定配置文件
+  --config key=value     临时覆盖配置
+  --lang <zh-CN|en>      设置界面语言（默认：简体中文）
+  -V, --version          显示版本
+  -h, --help             显示帮助
+
+交互命令：
+  /帮助                  查看命令
+  /服务商                查看内置模型服务商
+  /状态                  查看会话状态
+  /配置，/设置           查看当前模型配置
+  /模型 [名称]           查看或切换本次会话的模型
+  /上下文                查看上次上下文摘要
+  /来源                  查看上次规划使用的来源
+  /步骤                  查看上次规划的行动步骤
+  /修改 <补充说明>       根据补充说明重新规划
+  /导出 [路径]           导出 Markdown 工作计划
+  /规划 <任务>           规划一项任务
+  /完整                  查看上次完整 JSON 结果
+  /压缩 [备注]           压缩会话摘要
+  /清除，/重置，/新建    开始新会话
+  /继续                  继续最近的会话
+  /恢复 [会话编号]       恢复指定或最近的会话
+  /退出，/结束           退出
+
+说明：
+  直接输入任务即可开始规划；NPlan 只生成计划，不执行任务。
+  英文命令仍可使用。完整结构化结果请使用 -p 或 /完整。`;
+
+function renderHelp(locale) {
+  return resolveLocale(locale) === 'en' ? HELP_EN : HELP_ZH;
+}
+
 export async function main(argv = process.argv.slice(2), streams = { input, output, error: process.stderr }) {
   let parsed;
   try {
@@ -91,7 +145,7 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
     return 1;
   }
   if (parsed.help) {
-    streams.output.write(`${HELP}\n`);
+    streams.output.write(`${renderHelp(parsed.locale)}\n`);
     return 0;
   }
   if (parsed.version) {
@@ -169,7 +223,7 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
       const result = await runtime.agent.analyzeAsync(prompt, contextForSession(session));
       const warning = recordSessionTurn(session, prompt, result);
       if (warning) streams.error.write(`${warning}\n`);
-      streams.output.write(`${renderPrintResult(result, parsed.outputFormat)}\n`);
+      streams.output.write(`${renderPrintResult(result, parsed.outputFormat, parsed.locale)}\n`);
       return 0;
     } catch (error) {
       streams.error.write(`analysis failed: ${error.message}\n`);
@@ -184,7 +238,7 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
     streams.error.write(`${error.message}\n`);
     return 1;
   }
-  await runInteractive({ runtime, runtimeError, initialPrompt: parsed.prompt, streams, ...sessionInfo });
+  await runInteractive({ runtime, runtimeError, initialPrompt: parsed.prompt, streams, locale: parsed.locale, ...sessionInfo });
   return 0;
 }
 
@@ -202,6 +256,7 @@ export function parseArgs(argv) {
   let resumeSessionId = null;
   let outputFormat = 'json';
   let inputFormat = 'text';
+  let locale = resolveLocale();
 
   if (COMMANDS.has(values[0])) {
     command = values.shift();
@@ -271,6 +326,8 @@ export function parseArgs(argv) {
     } else if (value === '--config') {
       initHasExplicitConfig = true;
       configValues.push(requireValue(value, values));
+    } else if (value === '--lang') {
+      locale = resolveLocale(requireValue(value, values));
     } else if (value === '-V' || value === '--version') {
       version = true;
     } else if (value === '-h' || value === '--help') {
@@ -292,7 +349,8 @@ export function parseArgs(argv) {
     continueSession,
     resumeSessionId,
     outputFormat,
-    inputFormat
+    inputFormat,
+    locale
   };
 }
 
@@ -302,15 +360,17 @@ async function runInteractive({
   initialPrompt,
   streams,
   session,
+  locale = 'zh-CN',
   sessionNotice = null
 }) {
-  const state = { lastResult: null, lastPrPlan: null, requests: 0, runtime, runtimeError, session };
-  streams.output.write(`${APP_NAME}\n`);
-  streams.output.write(`cwd: ${process.cwd()}\n`);
-  streams.output.write(`session: ${session.id}\n`);
+  const state = { lastResult: null, lastWorkPlan: null, requests: 0, runtime, runtimeError, session, locale };
+  const labelSeparator = locale === 'en' ? ': ' : '：';
+  streams.output.write(`${message(locale, 'startup.title')}\n`);
+  streams.output.write(`${message(locale, 'startup.cwd')}${labelSeparator}${process.cwd()}\n`);
+  streams.output.write(`${message(locale, 'startup.session')}${labelSeparator}${session.id}\n`);
   if (sessionNotice) streams.output.write(`${sessionNotice}\n`);
   streams.output.write(`${runtimeSummary(state)}\n`);
-  streams.output.write('Type a task to plan it. Use /help for commands.\n');
+  streams.output.write(`${message(locale, 'startup.hint')}\n`);
 
   if (initialPrompt) {
     await analyzeAndRender(initialPrompt, { state, streams });
@@ -325,7 +385,7 @@ async function runInteractive({
   let closed = false;
   const requestExit = () => {
     if (closed) return;
-    streams.output.write('\nbye\n');
+    streams.output.write(`\n${message(locale, 'startup.bye')}\n`);
     rl.close();
   };
   const onProcessInterrupt = () => {
@@ -352,13 +412,14 @@ async function runInteractive({
 
 async function handleInteractiveLine(line, { state, streams }) {
   if (!line) return false;
+  line = normalizeSlashCommand(line);
   const slash = parseSlashLine(line);
   if (line === '/exit' || line === '/quit') {
-    streams.output.write('bye\n');
+    streams.output.write(`${message(state.locale, 'startup.bye')}\n`);
     return true;
   }
   if (line === '/help' || line === '/?') {
-    streams.output.write(`${HELP}\n`);
+    streams.output.write(`${renderHelp(state.locale)}\n`);
     return false;
   }
   if (line === '/providers') {
@@ -378,17 +439,17 @@ async function handleInteractiveLine(line, { state, streams }) {
     return false;
   }
   if (line === '/sources') {
-    streams.output.write(`${renderPrPlanSources(state.lastPrPlan)}\n`);
+    streams.output.write(`${renderWorkPlanSources(state.lastWorkPlan)}\n`);
     return false;
   }
   if (line === '/todo') {
-    streams.output.write(`${renderPrPlanTodo(state.lastPrPlan)}\n`);
+    streams.output.write(`${renderWorkPlanTodo(state.lastWorkPlan)}\n`);
     return false;
   }
   if (slash.command === '/revise') {
     const revision = slash.arg;
     if (!revision) {
-      streams.output.write('Usage: /revise <additional context>\n');
+      streams.output.write(`${message(state.locale, 'error.reviseUsage')}\n`);
       return false;
     }
     if (!state.lastResult) {
@@ -414,7 +475,7 @@ async function handleInteractiveLine(line, { state, streams }) {
   }
   if (line === '/clear' || line === '/reset' || line === '/new') {
     state.lastResult = null;
-    state.lastPrPlan = null;
+    state.lastWorkPlan = null;
     state.session = createSession();
     streams.output.write(`cleared. New session: ${state.session.id}\n`);
     return false;
@@ -425,7 +486,7 @@ async function handleInteractiveLine(line, { state, streams }) {
       streams.output.write('No saved session found.\n');
     } else {
       state.lastResult = null;
-      state.lastPrPlan = null;
+      state.lastWorkPlan = null;
       state.session = loaded;
       streams.output.write(`resumed session ${loaded.id} (${loaded.turns.length} turns)\n`);
     }
@@ -437,7 +498,7 @@ async function handleInteractiveLine(line, { state, streams }) {
       streams.output.write(`No saved session found. Current session: ${state.session.id}\n`);
     } else {
       state.lastResult = null;
-      state.lastPrPlan = null;
+      state.lastWorkPlan = null;
       state.session = loaded;
       streams.output.write(`continuing session ${loaded.id} (${loaded.turns.length} turns)\n`);
     }
@@ -445,7 +506,7 @@ async function handleInteractiveLine(line, { state, streams }) {
   }
   if (line === '/json') {
     streams.output.write(
-      state.lastResult ? `${JSON.stringify(state.lastResult, null, 2)}\n` : 'No result yet.\n'
+      state.lastResult ? `${JSON.stringify(state.lastResult, null, 2)}\n` : `${message(state.locale, 'error.noResult')}\n`
     );
     return false;
   }
@@ -462,13 +523,13 @@ async function handleInteractiveLine(line, { state, streams }) {
     return false;
   }
   if (line.startsWith('/') && !line.startsWith('/plan ')) {
-    streams.output.write('Unknown command. Use /help for commands.\n');
+    streams.output.write(`${message(state.locale, 'error.unknownCommand')}\n`);
     return false;
   }
 
   const prompt = line.startsWith('/plan ') ? line.slice('/plan '.length).trim() : line;
   if (!prompt) {
-    streams.output.write('Usage: /plan <prompt>\n');
+    streams.output.write(`${message(state.locale, 'error.planUsage')}\n`);
     return false;
   }
 
@@ -478,66 +539,75 @@ async function handleInteractiveLine(line, { state, streams }) {
 
 async function analyzeAndRender(prompt, { state, streams }) {
   if (!state.runtime) {
-    streams.output.write(`${setupRequiredMessage(state.runtimeError)}\n`);
+    streams.output.write(`${setupRequiredMessage(state.runtimeError, state.locale)}\n`);
     return;
   }
   try {
     state.lastResult = await state.runtime.agent.analyzeAsync(prompt, contextForSession(state.session));
-    state.lastPrPlan = derivePrPlan(state.lastResult, { sessionId: state.session.id });
+    state.lastWorkPlan = deriveWorkPlan(state.lastResult, { sessionId: state.session.id, locale: state.locale });
     state.requests += 1;
     const warning = recordSessionTurn(state.session, prompt, state.lastResult);
-    streams.output.write(`${renderInteractiveResult(state.lastResult)}\n`);
+    streams.output.write(`${renderInteractiveResult(state.lastResult, { workPlan: state.lastWorkPlan, locale: state.locale })}\n`);
     if (warning) streams.output.write(`${warning}\n`);
   } catch (error) {
-    streams.output.write(`analysis failed: ${error.message}\n`);
+    streams.output.write(`${message(state.locale, 'error.analysisFailed', { detail: error.message })}\n`);
   }
 }
 
-function renderPrintResult(result, outputFormat = 'json') {
+function renderPrintResult(result, outputFormat = 'json', locale = 'zh-CN') {
   if (outputFormat === 'summary' || outputFormat === 'text') {
-    return renderInteractiveResult(result, { includeJsonHint: false });
+    return renderInteractiveResult(result, { locale });
   }
   return JSON.stringify(result, null, 2);
 }
 
-export function renderInteractiveResult(result, { includeJsonHint = true } = {}) {
-  const lines = [`status: ${result.status}`];
-  if (result.taskspec?.inferred_goal) lines.push(`goal: ${result.taskspec.inferred_goal}`);
+export function renderInteractiveResult(result, options = {}) {
+  const locale = resolveLocale(options.locale);
+  const workPlan = options.workPlan || deriveWorkPlan(result, { locale });
+  const lines = [];
 
-  if (result.status === 'needs_clarification') {
-    const questions = result.clarification_questions || result.taskspec?.clarification?.questions || [];
-    if (questions.length) {
-      lines.push('', 'clarification needed:');
-      for (const question of questions) lines.push(`- ${question}`);
-    }
-    lines.push('', 'No task plan was produced yet.');
-    if (includeJsonHint) lines.push('Full JSON: /json');
+  if (result?.status === 'needs_clarification') {
+    lines.push(message(locale, 'result.questions'));
+    appendList(lines, workPlan.questions, message(locale, 'result.none'));
+    lines.push('', message(locale, 'result.next'));
+    appendList(lines, workPlan.next_actions, message(locale, 'result.none'));
     return lines.join('\n');
   }
 
-  const deliverables = (result.taskspec?.deliverables || []).filter((item) => item?.name);
-  if (deliverables.length) {
-    lines.push('', 'deliverables:');
-    for (const item of deliverables) {
-      const suffix = item.format && item.format !== 'unknown' ? ` (${item.format})` : '';
-      lines.push(`- ${item.name}${suffix}`);
-    }
+  lines.push(message(locale, 'result.conclusion'));
+  lines.push(workPlan.conclusion || message(locale, 'result.none'));
+
+  if (workPlan.steps.length) {
+    lines.push('', message(locale, 'result.steps'));
+    workPlan.steps.forEach((step, index) => {
+      lines.push(`${index + 1}. ${step.title}`);
+      if (step.acceptance.length) {
+        const separator = locale === 'en' ? ': ' : '：';
+        lines.push(`   ${message(locale, 'result.stepAcceptance')}${separator}${step.acceptance.join(locale === 'en' ? '; ' : '；')}`);
+      }
+    });
   }
 
-  const tasks = result.taskplan?.tasks || [];
-  if (tasks.length) {
-    lines.push('', 'plan:');
-    for (const task of tasks) lines.push(`- ${task.id}: ${task.title}`);
+  if (workPlan.acceptance.length) {
+    lines.push('', message(locale, 'result.acceptance'));
+    appendList(lines, workPlan.acceptance, message(locale, 'result.none'));
   }
 
   const issues = reportIssues(result);
   if (issues.length) {
-    lines.push('', 'validation issues:');
-    for (const issue of issues) lines.push(`- ${issue}`);
+    lines.push('', message(locale, 'result.issues'));
+    appendList(lines, issues, message(locale, 'result.none'));
   }
 
-  if (includeJsonHint) lines.push('', 'Full JSON: /json');
+  lines.push('', message(locale, 'result.next'));
+  appendList(lines, workPlan.next_actions, message(locale, 'result.none'));
   return lines.join('\n');
+}
+
+function appendList(lines, items, emptyLabel) {
+  const values = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (!values.length) lines.push(`- ${emptyLabel}`);
+  else values.forEach((item) => lines.push(`- ${item}`));
 }
 
 function reportIssues(result) {
@@ -566,8 +636,14 @@ function makeRuntime(parsed) {
 }
 
 function runtimeSummary(state) {
-  if (!state.runtime) return `model: not configured\n${setupRequiredMessage(state.runtimeError)}`;
-  return `model: ${state.runtime.config.model_provider}/${state.runtime.config.model}`;
+  if (!state.runtime) {
+    return state.locale === 'en'
+      ? `model: not configured\n${setupRequiredMessage(state.runtimeError, 'en')}`
+      : `模型：未配置\n${setupRequiredMessage(state.runtimeError, 'zh-CN')}`;
+  }
+  return state.locale === 'en'
+    ? `model: ${state.runtime.config.model_provider}/${state.runtime.config.model}`
+    : `模型：${state.runtime.config.model_provider}/${state.runtime.config.model}`;
 }
 
 function runtimeStatus(state) {
@@ -587,7 +663,7 @@ function renderStatus(state) {
 }
 
 function renderConfig(state) {
-  if (!state.runtime) return `model: not configured\n${setupRequiredMessage(state.runtimeError)}`;
+  if (!state.runtime) return runtimeSummary(state);
   const provider = state.runtime.config.model_provider;
   const model = state.runtime.config.model;
   return [
@@ -612,7 +688,7 @@ function renderContextStatus(result) {
 function handleModelCommand(arg, state) {
   const nextModel = String(arg || '').trim();
   if (!nextModel) return state.runtime ? `model: ${state.runtime.config.model_provider}/${state.runtime.config.model}` : runtimeSummary(state);
-  if (!state.runtime) return setupRequiredMessage(state.runtimeError);
+  if (!state.runtime) return setupRequiredMessage(state.runtimeError, state.locale);
   state.runtime.config = { ...state.runtime.config, model: nextModel };
   state.runtime.agent = new LocalPlanningAgent({
     modelClient: new OpenAICompatiblePlanningModel({ config: state.runtime.config })
@@ -631,10 +707,12 @@ function handleCompactCommand(arg, state) {
 }
 
 function handleExportCommand(arg, state) {
-  if (!state.lastPrPlan) return 'No export yet. Run /plan <prompt> first.';
+  if (!state.lastWorkPlan) return state.locale === 'en'
+    ? 'Nothing to export yet. Run /plan <task> first.'
+    : '还没有可导出的计划，请先输入任务。';
   try {
-    const target = resolveExportPath(arg, state.lastPrPlan);
-    const markdown = renderObsidianPrPlan(state.lastPrPlan);
+    const target = resolveExportPath(arg, state.lastWorkPlan);
+    const markdown = renderWorkPlanMarkdown(state.lastWorkPlan);
     mkdirSync(dirname(target.absolute), { recursive: true });
     writeFileSync(target.absolute, markdown, 'utf8');
     return `exported: ${target.display}`;
@@ -643,8 +721,8 @@ function handleExportCommand(arg, state) {
   }
 }
 
-function resolveExportPath(arg, prPlan) {
-  const raw = String(arg || '').trim() || defaultPrPlanExportPath(prPlan);
+function resolveExportPath(arg, workPlan) {
+  const raw = String(arg || '').trim() || defaultWorkPlanExportPath(workPlan);
   if (extname(raw).toLowerCase() !== '.md') {
     throw new Error('export path must end with .md');
   }
@@ -655,7 +733,8 @@ function resolveExportPath(arg, prPlan) {
   return { absolute, display: raw.replace(/\\/g, '/') };
 }
 
-function setupRequiredMessage(error) {
+function setupRequiredMessage(error, locale = 'en') {
+  if (locale !== 'en') return `请先运行 ${SETUP_COMMAND} 配置模型。`;
   const detail = error ? ` (${error})` : '';
   return `Model setup required${detail}. Run ${SETUP_COMMAND}.`;
 }

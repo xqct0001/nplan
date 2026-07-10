@@ -98,6 +98,7 @@ The CLI mirrors a safe subset of Claude Code's command-line interaction shape:
 - `-p` / `--print`: print one JSON result and exit
 - `--output-format json|summary|text`: choose print-mode rendering
 - `--input-format text`: accept text from argv or stdin
+- `--lang zh-CN|en`: use Simplified Chinese by default or opt into English
 - `--continue` / `-c`: continue the latest local planning session
 - `--resume` / `-r [id]`: resume a saved local planning session
 - `resume [id]`: Codex-style session resume command
@@ -113,6 +114,9 @@ The CLI mirrors a safe subset of Claude Code's command-line interaction shape:
   `/model`, `/context`, `/sources`, `/todo`, `/revise`, `/export`, `/plan`,
   `/json`, `/compact`, `/clear`, `/reset`, `/new`, `/continue`, `/resume`,
   `/exit`, `/quit`
+- complete Chinese aliases are available for the same commands, including
+  argument-bearing forms such as `/规划 <任务>`, `/修改 <补充说明>`, and
+  `/导出 [路径]`
 - interactive mode shows a concise planning summary; `/json` shows the full
   structured result
 - `/sources` and `/todo` are read-only views over the latest planning result;
