@@ -251,9 +251,31 @@ export function validateWorkPlan(workPlan) {
     if (!Array.isArray(workPlan[field])) issues.push(`invalid_${field}`);
   }
 
+  if (nonEmptyString(workPlan.version) && workPlan.version !== '1.0') {
+    issues.push('invalid_version');
+  }
+  if (
+    nonEmptyString(workPlan.status) &&
+    !['planned', 'needs_clarification', 'plan_invalid'].includes(workPlan.status)
+  ) {
+    issues.push('invalid_status');
+  }
+  if (nonEmptyString(workPlan.language) && !['zh-CN', 'en'].includes(workPlan.language)) {
+    issues.push('invalid_language');
+  }
+
+  const questions = stringArrayReport(workPlan.questions);
+  const acceptance = stringArrayReport(workPlan.acceptance);
+  const nextActions = stringArrayReport(workPlan.next_actions);
+  if (questions.invalid) issues.push('invalid_questions');
+  if (acceptance.invalid) issues.push('invalid_acceptance');
+  if (nextActions.invalid) issues.push('invalid_next_actions');
+
   const steps = Array.isArray(workPlan.steps) ? workPlan.steps : [];
   const stepIds = new Set();
-  for (const step of steps) {
+  const duplicateStepIds = new Set();
+  const dependencyLists = new Map();
+  for (const [index, step] of steps.entries()) {
     if (!isObject(step)) {
       issues.push('step_invalid');
       continue;
@@ -261,35 +283,70 @@ export function validateWorkPlan(workPlan) {
     if (!nonEmptyString(step.id)) issues.push('step_missing_id');
     if (!nonEmptyString(step.title)) issues.push('step_missing_title');
     if (!nonEmptyString(step.goal)) issues.push('step_missing_goal');
-    if (!Array.isArray(step.dependencies)) issues.push('step_invalid_dependencies');
-    if (!Array.isArray(step.outputs)) issues.push('step_invalid_outputs');
-    if (!nonEmptyStringArray(step.acceptance)) issues.push('step_missing_acceptance');
+    const dependencies = stringArrayReport(step.dependencies);
+    const outputs = stringArrayReport(step.outputs);
+    const stepAcceptance = stringArrayReport(step.acceptance);
+    if (dependencies.invalid) issues.push('step_invalid_dependencies');
+    if (outputs.invalid) issues.push('step_invalid_outputs');
+    if (!outputs.items.length) issues.push('step_missing_outputs');
+    if (stepAcceptance.invalid) issues.push('step_invalid_acceptance');
+    if (!stepAcceptance.items.length) issues.push('step_missing_acceptance');
+    if (step.state !== 'pending') issues.push('step_invalid_state');
+
+    const graphId = nonEmptyString(step.id) ? step.id.trim() : `<missing-step-${index + 1}>`;
+    dependencyLists.set(graphId, dependencies.items);
     if (nonEmptyString(step.id)) {
       const id = step.id.trim();
-      if (stepIds.has(id)) issues.push('duplicate_step_ids');
+      if (stepIds.has(id)) duplicateStepIds.add(id);
       stepIds.add(id);
     }
   }
 
+  if (duplicateStepIds.size) issues.push('duplicate_step_ids');
+  const graph = Object.fromEntries([...dependencyLists.keys()].map((id) => [id, []]));
+  let hasMissingDependencyRefs = false;
+  for (const [id, dependencies] of dependencyLists) {
+    for (const dependency of dependencies) {
+      if (!stepIds.has(dependency)) {
+        hasMissingDependencyRefs = true;
+      } else if (graph[id]) {
+        graph[id].push(dependency);
+      }
+    }
+  }
+  if (hasMissingDependencyRefs) issues.push('missing_dependency_refs');
+  if (!duplicateStepIds.size && hasCycle(graph)) issues.push('cycle_detected');
+
   if (workPlan.status === 'planned') {
     if (!steps.length) issues.push('missing_steps');
-    if (!nonEmptyStringArray(workPlan.acceptance)) issues.push('missing_acceptance');
+    if (!acceptance.items.length) issues.push('missing_acceptance');
   }
   if (workPlan.status === 'needs_clarification') {
     if (steps.length) issues.push('clarification_with_steps');
-    if (!nonEmptyStringArray(workPlan.questions)) issues.push('clarification_without_questions');
+    if (!questions.items.length) issues.push('clarification_without_questions');
   }
-  if (!nonEmptyStringArray(workPlan.next_actions)) issues.push('missing_next_actions');
+  if (!nextActions.items.length) issues.push('missing_next_actions');
 
+  const sourceIds = new Set();
+  const duplicateSourceIds = new Set();
   for (const source of Array.isArray(workPlan.source_summary) ? workPlan.source_summary : []) {
     if (!isObject(source)) {
       issues.push('source_invalid');
       continue;
     }
-    if (!nonEmptyString(source.source_id)) issues.push('source_missing_id');
+    if (!nonEmptyString(source.source_id)) {
+      issues.push('source_missing_id');
+    } else {
+      const sourceId = source.source_id.trim();
+      if (sourceIds.has(sourceId)) duplicateSourceIds.add(sourceId);
+      sourceIds.add(sourceId);
+    }
     if (!nonEmptyString(source.relative_path)) issues.push('source_missing_relative_path');
-    if (absolutePathLike(source.relative_path)) issues.push('source_path_not_relative');
+    if (nonEmptyString(source.relative_path) && !safeRelativeSourcePath(source.relative_path)) {
+      issues.push('source_path_not_relative');
+    }
   }
+  if (duplicateSourceIds.size) issues.push('duplicate_source_ids');
 
   return { valid: issues.length === 0, issues: unique(issues) };
 }
@@ -363,9 +420,13 @@ function nonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function absolutePathLike(value) {
+function safeRelativeSourcePath(value) {
   const text = String(value || '').trim();
-  return /^[A-Za-z]:[\\/]/.test(text) || /^[/\\]{1,2}/.test(text);
+  if (!text || /[\u0000-\u001f]/.test(text)) return false;
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(text)) return false;
+  if (/^[/\\]/.test(text)) return false;
+  const segments = text.replace(/\\/g, '/').split('/');
+  return !segments.some((segment) => segment === '.' || segment === '..');
 }
 
 function toNumber(value) {

@@ -122,6 +122,172 @@ test('WorkPlan validator reports missing fields and invalid steps', () => {
   assert.ok(report.issues.includes('missing_acceptance'));
 });
 
+test('WorkPlan validator rejects unsupported contract enum values', () => {
+  const workPlan = validWorkPlan();
+  workPlan.version = '2.0';
+  workPlan.status = 'ready';
+  workPlan.language = 'zh';
+
+  const report = validateWorkPlan(workPlan);
+
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.includes('invalid_version'));
+  assert.ok(report.issues.includes('invalid_status'));
+  assert.ok(report.issues.includes('invalid_language'));
+});
+
+test('WorkPlan validator rejects non-string arrays', () => {
+  const workPlan = validWorkPlan();
+  workPlan.questions = [1];
+  workPlan.acceptance = [2];
+  workPlan.next_actions = [3];
+  workPlan.steps[0].dependencies = [4];
+  workPlan.steps[0].outputs = [5];
+  workPlan.steps[0].acceptance = [6];
+
+  const report = validateWorkPlan(workPlan);
+
+  assert.equal(report.valid, false);
+  for (const issue of [
+    'invalid_questions',
+    'invalid_acceptance',
+    'invalid_next_actions',
+    'step_invalid_dependencies',
+    'step_invalid_outputs',
+    'step_invalid_acceptance'
+  ]) {
+    assert.ok(report.issues.includes(issue), issue);
+  }
+});
+
+test('WorkPlan validator enforces pending state, dependency references, and DAG structure', () => {
+  const withSecondStep = validWorkPlan();
+  withSecondStep.steps.push({
+    ...structuredClone(withSecondStep.steps[0]),
+    id: 'T2',
+    title: '编排行程',
+    dependencies: ['T1']
+  });
+
+  const wrongState = structuredClone(withSecondStep);
+  wrongState.steps[0].state = 'done';
+  assert.ok(validateWorkPlan(wrongState).issues.includes('step_invalid_state'));
+
+  const dangling = structuredClone(withSecondStep);
+  dangling.steps[1].dependencies = ['T9'];
+  assert.ok(validateWorkPlan(dangling).issues.includes('missing_dependency_refs'));
+
+  const cyclic = structuredClone(withSecondStep);
+  cyclic.steps[0].dependencies = ['T2'];
+  assert.ok(validateWorkPlan(cyclic).issues.includes('cycle_detected'));
+
+  const duplicate = structuredClone(withSecondStep);
+  duplicate.steps[1].id = 'T1';
+  assert.ok(validateWorkPlan(duplicate).issues.includes('duplicate_step_ids'));
+});
+
+test('default WorkPlan export path sanitizes an unsafe plan id to one filename component', () => {
+  for (const planId of ['../../outside', '..\\..\\outside', 'file:///C:/Users/qiyue/outside']) {
+    const exportPath = defaultWorkPlanExportPath({ plan_id: planId });
+    assert.match(exportPath, /^\.nplan\/exports\/[^/\\]+\.md$/);
+    assert.doesNotMatch(exportPath, /\.\./);
+  }
+  assert.equal(
+    defaultWorkPlanExportPath({ plan_id: '../../outside' }),
+    '.nplan/exports/outside.md'
+  );
+});
+
+test('unsafe source paths are invalid and never cross a rendering boundary', () => {
+  const workPlan = validWorkPlan();
+  const unsafePaths = [
+    '../../outside',
+    'docs/../secret.md',
+    'docs/./local.md',
+    'file:///C:/Users/qiyue/private.md',
+    'https://example.com/private.md',
+    'C:\\Users\\qiyue\\private.md',
+    '\\\\server\\share\\private.md',
+    '/etc/passwd'
+  ];
+  workPlan.source_summary = [
+    { source_id: 'S1', kind: 'instruction', relative_path: 'docs/guide.md', title: '指南' },
+    ...unsafePaths.map((relativePath, index) => ({
+      source_id: `U${index + 1}`,
+      kind: 'file',
+      relative_path: relativePath,
+      title: '不应显示'
+    }))
+  ];
+
+  const sources = renderWorkPlanSources(workPlan);
+  const markdown = renderWorkPlanMarkdown(workPlan);
+
+  for (const unsafePath of unsafePaths) {
+    const probe = validWorkPlan();
+    probe.source_summary = [
+      { source_id: 'U1', kind: 'file', relative_path: unsafePath, title: '' }
+    ];
+    const report = validateWorkPlan(probe);
+    assert.equal(report.valid, false, unsafePath);
+    assert.ok(report.issues.includes('source_path_not_relative'), unsafePath);
+  }
+  assert.match(sources, /docs\/guide\.md/);
+  assert.match(markdown, /docs\/guide\.md/);
+  for (const unsafePath of unsafePaths) {
+    assert.doesNotMatch(sources, new RegExp(escapeRegex(unsafePath)));
+    assert.doesNotMatch(markdown, new RegExp(escapeRegex(unsafePath)));
+  }
+});
+
+test('WorkPlan derivation drops missing and duplicate source ids while preserving valid sources', () => {
+  const result = plannedChineseResult();
+  result.taskspec.source_map = [
+    { source_id: 'S1', kind: 'file', relative_path: 'docs/first.md' },
+    { kind: 'file', relative_path: 'docs/missing-id.md' },
+    { source_id: 'S1', kind: 'file', relative_path: 'docs/duplicate.md' },
+    { source_id: 'S2', kind: 'file', relative_path: 'docs/second.md' }
+  ];
+
+  const workPlan = deriveWorkPlan(result, {
+    locale: 'zh-CN',
+    now: new Date('2026-07-10T00:00:00Z')
+  });
+
+  assert.deepEqual(
+    workPlan.source_summary.map((source) => [source.source_id, source.relative_path]),
+    [
+      ['S1', 'docs/first.md'],
+      ['S2', 'docs/second.md']
+    ]
+  );
+  assert.doesNotMatch(JSON.stringify(workPlan.source_summary), /unknown-source/);
+});
+
+test('duplicate or missing source ids are invalid and omitted by renderers', () => {
+  const workPlan = validWorkPlan();
+  workPlan.source_summary = [
+    { source_id: 'S1', kind: 'file', relative_path: 'docs/first.md', title: '' },
+    { source_id: 'S1', kind: 'file', relative_path: 'docs/duplicate.md', title: '' },
+    { source_id: '', kind: 'file', relative_path: 'docs/missing-id.md', title: '' },
+    { source_id: 'S2', kind: 'file', relative_path: 'docs/second.md', title: '' }
+  ];
+
+  const report = validateWorkPlan(workPlan);
+  const sources = renderWorkPlanSources(workPlan);
+  const markdown = renderWorkPlanMarkdown(workPlan);
+
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.includes('duplicate_source_ids'));
+  assert.ok(report.issues.includes('source_missing_id'));
+  for (const rendered of [sources, markdown]) {
+    assert.match(rendered, /docs\/first\.md/);
+    assert.match(rendered, /docs\/second\.md/);
+    assert.doesNotMatch(rendered, /docs\/duplicate\.md/);
+    assert.doesNotMatch(rendered, /docs\/missing-id\.md/);
+  }
+});
+
 function plannedChineseResult() {
   const taskspec = readyTaskSpec();
   return {
@@ -231,4 +397,16 @@ function modelTask(overrides = {}) {
     state: 'pending',
     ...overrides
   };
+}
+
+function validWorkPlan() {
+  return deriveWorkPlan(plannedChineseResult(), {
+    sessionId: '20260710120000-abcd1234',
+    locale: 'zh-CN',
+    now: new Date('2026-07-10T00:00:00Z')
+  });
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

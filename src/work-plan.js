@@ -68,7 +68,7 @@ export function renderWorkPlanTodo(workPlan) {
 export function renderWorkPlanSources(workPlan) {
   const locale = workPlan?.language === 'en' ? 'en' : 'zh-CN';
   const labels = messages(locale);
-  const sources = Array.isArray(workPlan?.source_summary) ? workPlan.source_summary : [];
+  const sources = safeSourcesForRendering(workPlan?.source_summary);
   const lines = [`${labels.sources}${labels.colon}`];
 
   if (!sources.length) {
@@ -142,7 +142,7 @@ export function renderWorkPlanMarkdown(workPlan) {
 }
 
 export function defaultWorkPlanExportPath(workPlan) {
-  return `.nplan/exports/${firstText(workPlan?.plan_id, 'work-plan')}.md`;
+  return `.nplan/exports/${safeFilenameComponent(workPlan?.plan_id)}.md`;
 }
 
 function normalizeStep(task, index) {
@@ -158,17 +158,12 @@ function normalizeStep(task, index) {
 }
 
 function relativeSources(value) {
-  return (Array.isArray(value) ? value : [])
-    .filter(
-      (source) =>
-        nonEmptyString(source?.relative_path) && !absolutePathLike(source.relative_path)
-    )
-    .map((source) => ({
-      source_id: firstText(source.source_id, source.id, 'unknown-source'),
-      kind: firstText(source.kind, 'unknown'),
-      relative_path: String(source.relative_path).trim(),
-      title: firstText(source.knowledge?.title, source.title, source.knowledge?.description, '')
-    }));
+  return safeSourcesForRendering(value).map((source) => ({
+    source_id: source.source_id.trim(),
+    kind: firstText(source.kind, 'unknown'),
+    relative_path: String(source.relative_path).trim(),
+    title: firstText(source.knowledge?.title, source.title, source.knowledge?.description, '')
+  }));
 }
 
 function nextActionsFor(result, locale) {
@@ -268,7 +263,7 @@ function graphLines(steps, emptyLabel) {
 }
 
 function sourceLines(value, emptyLabel) {
-  const sources = Array.isArray(value) ? value : [];
+  const sources = safeSourcesForRendering(value);
   if (!sources.length) return [`- ${emptyLabel}`];
   return sources.map((source) => {
     const kind = source.kind ? `[${markdownText(source.kind)}] ` : '';
@@ -292,7 +287,7 @@ function rawStepIdLines(steps) {
 }
 
 function rawSourceIdLines(value) {
-  const sources = Array.isArray(value) ? value : [];
+  const sources = safeSourcesForRendering(value);
   return sources.length
     ? [
         '- source_ids:',
@@ -333,9 +328,40 @@ function nonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function absolutePathLike(value) {
+function safeRelativeSourcePath(value) {
   const text = String(value || '').trim();
-  return /^[A-Za-z]:[\\/]/.test(text) || /^[/\\]{1,2}/.test(text);
+  if (!text || /[\u0000-\u001f]/.test(text)) return false;
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(text)) return false;
+  if (/^[/\\]/.test(text)) return false;
+  const segments = text.replace(/\\/g, '/').split('/');
+  return !segments.some((segment) => segment === '.' || segment === '..');
+}
+
+function safeSourcesForRendering(value) {
+  const seen = new Set();
+  return (Array.isArray(value) ? value : []).filter((source) => {
+    if (!source || typeof source !== 'object') return false;
+    if (!nonEmptyString(source.source_id)) return false;
+    if (!nonEmptyString(source.relative_path) || !safeRelativeSourcePath(source.relative_path)) {
+      return false;
+    }
+    const sourceId = source.source_id.trim();
+    if (seen.has(sourceId)) return false;
+    seen.add(sourceId);
+    return true;
+  });
+}
+
+function safeFilenameComponent(value) {
+  const normalized = String(value || '')
+    .normalize('NFKC')
+    .replace(/[^\p{Letter}\p{Number}_-]+/gu, '-')
+    .replace(/^-+|-+$/g, '');
+  const component = Array.from(normalized).slice(0, 100).join('');
+  if (!component || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(component)) {
+    return 'work-plan';
+  }
+  return component;
 }
 
 function markdownText(value) {
