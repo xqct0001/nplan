@@ -31,7 +31,13 @@ test('TaskPlan schema defines required nested task fields', () => {
     'id', 'title', 'goal', 'inputs', 'outputs', 'dependencies',
     'parallel_group', 'acceptance', 'complexity', 'risk', 'model_tier', 'state'
   ]);
+  for (const field of ['inputs', 'outputs', 'dependencies', 'acceptance']) {
+    assert.equal(taskItems.properties[field].items.type, 'string');
+  }
+  assert.deepEqual(taskItems.properties.complexity.enum, ['low', 'medium', 'high']);
+  assert.deepEqual(taskItems.properties.risk.enum, ['low', 'medium', 'high']);
   assert.equal(taskItems.properties.state.const, 'pending');
+  assert.equal(taskItems.additionalProperties, false);
 });
 
 test('model TaskPlan draft becomes a concrete validated DAG', () => {
@@ -85,6 +91,15 @@ test('model TaskPlan draft becomes a concrete validated DAG', () => {
 test('validator rejects generic deliverable wrappers', () => {
   const taskplan = composeTaskPlanFromModel(readyTaskSpec(), {
     tasks: [modelTask({ title: 'Define Markdown report', outputs: ['Markdown report'] })]
+  });
+  const report = validateTaskPlan(taskplan);
+  assert.equal(report.valid, false);
+  assert.ok(report.policy_errors.includes('task_too_coarse:T1'));
+});
+
+test('validator rejects Chinese generic deliverable wrappers', () => {
+  const taskplan = composeTaskPlanFromModel(readyTaskSpec(), {
+    tasks: [modelTask({ title: '定义Markdown report', outputs: ['Markdown report'] })]
   });
   const report = validateTaskPlan(taskplan);
   assert.equal(report.valid, false);
