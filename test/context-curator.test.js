@@ -5,7 +5,9 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import {
+  buildConsentScope,
   collectContext,
+  consentPreview,
   curateContext,
   detectRequestConflicts,
   parseKnowledgeDocument
@@ -238,6 +240,58 @@ test('project root remains a valid bounded scan directory', async () => {
   assert.deepEqual(context.source_map.map((source) => source.relative_path), ['README.md']);
 
   await rm(root, { recursive: true, force: true });
+});
+
+test('linked project root scans like its real root without following child aliases', async (t) => {
+  const parent = await mkdtemp(join(tmpdir(), 'nplan-linked-root-'));
+  t.after(() => rm(parent, { recursive: true, force: true }));
+  const actual = join(parent, 'actual');
+  const linked = join(parent, 'linked-root');
+  const docs = join(actual, 'docs');
+  const ignored = join(actual, 'node_modules');
+  await mkdir(docs, { recursive: true });
+  await mkdir(ignored);
+  await writeFile(join(actual, 'README.md'), '# Linked project root', 'utf8');
+  await writeFile(join(docs, 'public.md'), '# Public', 'utf8');
+  await writeFile(join(ignored, 'private.md'), '# Private alias marker', 'utf8');
+  if (!(await createLinkOrSkip(t, ignored, join(docs, 'alias'), 'dir'))) return;
+  if (!(await createLinkOrSkip(t, actual, linked, 'dir'))) return;
+
+  const contextPolicy = { root_files: [], scan_dirs: ['.'] };
+  const linkedContext = curateContext('summarize project', {
+    root: linked,
+    context_policy: contextPolicy
+  });
+  const actualContext = curateContext('summarize project', {
+    root: actual,
+    context_policy: contextPolicy
+  });
+  const relativeSources = ['README.md', 'docs/public.md'];
+
+  assert.deepEqual(
+    linkedContext.source_map.map((source) => source.relative_path),
+    relativeSources
+  );
+  assert.deepEqual(
+    actualContext.source_map.map((source) => source.relative_path),
+    relativeSources
+  );
+
+  const provider = { id: 'deepseek', base_url: 'https://api.deepseek.com' };
+  const linkedScope = buildConsentScope(
+    provider,
+    linkedContext.context_policy,
+    linkedContext.context_policy.user_exclusions
+  );
+  const actualScope = buildConsentScope(
+    provider,
+    actualContext.context_policy,
+    actualContext.context_policy.user_exclusions
+  );
+  assert.deepEqual(
+    consentPreview(linkedContext, linkedScope),
+    consentPreview(actualContext, actualScope)
+  );
 });
 
 test('root file symbolic link cannot read a target outside the project root', async (t) => {

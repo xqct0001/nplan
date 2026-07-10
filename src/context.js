@@ -11,7 +11,7 @@ export function collectContext(root = process.cwd(), options = {}) {
   const resolvedRoot = resolve(root);
   const rootEntry = existingEntry(resolvedRoot);
   const realRoot = rootEntry?.stat.isDirectory() ? rootEntry.realPath : resolvedRoot;
-  const candidates = discoverContextFiles(resolvedRoot, realRoot, policy);
+  const candidates = discoverContextFiles(resolvedRoot, realRoot, rootEntry, policy);
   const sourceMap = candidates
     .map((filePath) =>
       makeSourceRef(filePath, { root: resolvedRoot, parserVersion: policy.parser_version })
@@ -31,7 +31,7 @@ export function collectContext(root = process.cwd(), options = {}) {
   };
 }
 
-function discoverContextFiles(root, realRoot, policy) {
+function discoverContextFiles(root, realRoot, rootEntry, policy) {
   const files = new Set();
   for (const name of policy.root_files) {
     const path = resolve(root, name);
@@ -47,14 +47,22 @@ function discoverContextFiles(root, realRoot, policy) {
   }
   for (const dir of policy.scan_dirs) {
     const path = resolve(root, dir);
-    const entry = safeEntry(realRoot, path);
+    const isProjectRoot = path === root;
+    const entry = isProjectRoot ? rootEntry : safeEntry(realRoot, path);
     if (
       pathWithinRoot(root, path) &&
       !pathIsExcluded(root, path, policy.user_exclusions) &&
       entry?.stat.isDirectory() &&
       !pathIsExcluded(realRoot, entry.realPath, policy.user_exclusions)
     ) {
-      for (const file of walkTextFiles(root, realRoot, path, policy, new Set())) {
+      for (const file of walkTextFiles(
+        root,
+        realRoot,
+        path,
+        policy,
+        new Set(),
+        isProjectRoot ? entry : null
+      )) {
         files.add(file);
       }
     }
@@ -62,8 +70,15 @@ function discoverContextFiles(root, realRoot, policy) {
   return [...files];
 }
 
-function walkTextFiles(root, realRoot, dir, policy, visitedDirectories) {
-  const directory = safeEntry(realRoot, dir);
+function walkTextFiles(
+  root,
+  realRoot,
+  dir,
+  policy,
+  visitedDirectories,
+  validatedDirectory = null
+) {
+  const directory = validatedDirectory || safeEntry(realRoot, dir);
   if (!directory?.stat.isDirectory()) return [];
   const directoryKey = comparableRealPath(directory.realPath);
   if (visitedDirectories.has(directoryKey)) return [];
