@@ -433,7 +433,7 @@ Expected: only `README.zh-CN.md` committed in this task.
 - Untrack: `test/`
 
 **Interfaces:**
-- Consumes: the existing local `test/` directory and `node --test test` runner.
+- Consumes: the existing local `test/` directory and the `node --test` automatic test discovery runner.
 - Produces: a public Git tree without test sources or a public test script, while retaining the full local test suite.
 
 - [ ] **Step 1: Record the current failure state**
@@ -488,7 +488,7 @@ Expected: Git stages deletion of every tracked `test/` file; the files remain on
 Run:
 
 ```powershell
-node --test test
+node --test
 ```
 
 Expected: 193 tests total, 190 pass, 0 fail, and 3 Windows symlink-permission skips.
