@@ -21,11 +21,14 @@ bounded plan that another executor can review or run later.
 - Supports OKF-style local knowledge documents.
 - Uses configurable OpenAI-compatible model providers for semantic task
   understanding.
+- Uses separate model operations for TaskSpec understanding and TaskPlan
+  generation when a request is ready, then derives a generic `WorkPlan`
+  locally for display and export.
 
 ## Install
 
 ```cmd
-cd /d C:\Users\qiyue\Desktop\porgram\N_online_agent
+cd /d C:\path\to\nplan
 install
 ```
 
@@ -163,6 +166,15 @@ provider-and-scope fingerprint in `.nplan/consent.json`. Use
 `nplan consent revoke` to inspect or remove saved project consent. Non-interactive
 cloud calls without valid consent exit with code `2` before any model request.
 
+## v0.2 Breaking Changes
+
+- Session v1 files are not loaded. Session v2 restores the latest sanitized
+  result and WorkPlan, but never stores evidence text or absolute paths.
+- The v0.1 pull-request-specific planning and rendering exports are removed.
+  Use `deriveWorkPlan` and the WorkPlan renderers from `src/index.js`.
+- Non-interactive cloud print commands must save project consent first or pass
+  `--allow-cloud-context` for that invocation. Local providers need no consent.
+
 Shell execution through `!`, file editing, tool permission modes, MCP tool
 configuration, and remote-agent orchestration are intentionally unsupported.
 `/export` is the explicit boundary exception: it writes a user-requested
@@ -219,17 +231,23 @@ project's own sources.
 ## Library Usage
 
 ```js
-import { LocalPlanningAgent, OpenAICompatiblePlanningModel, loadModelConfig } from './src/index.js';
+import {
+  LocalPlanningAgent,
+  OpenAICompatiblePlanningModel,
+  deriveWorkPlan,
+  loadModelConfig
+} from './src/index.js';
 
 const config = await loadModelConfig();
 const modelClient = new OpenAICompatiblePlanningModel({ config });
 const agent = new LocalPlanningAgent({ modelClient });
 
 const result = await agent.analyzeAsync(
-  'Design a local file organizer that scans files, classifies them, and writes a Markdown report'
+  'Design a local file organizer that scans files, classifies them, and writes a Markdown report',
+  { cloud_context_authorized: true } // only after your application obtains consent
 );
 
-console.log(result.status);
+console.log(deriveWorkPlan(result));
 ```
 
 ## Project Layout

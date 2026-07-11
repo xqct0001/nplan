@@ -120,6 +120,20 @@ Wizard URL labels show only origin and path. User info, query strings, and
 fragments are never printed, while the original value remains unchanged for
 configuration storage and provider requests.
 
+## Planning And Context Consent
+
+A ready planning request uses two separate provider operations: TaskSpec
+understanding, followed by TaskPlan generation. If clarification is required,
+the second operation is skipped. Invalid TaskPlan output is returned for local
+validation and does not trigger a third provider operation.
+
+Local providers need no cloud-context consent. Before either operation uses a
+cloud provider, NPlan requires a valid project-and-scope consent record or the
+one-shot `--allow-cloud-context` flag. Non-interactive use without either exits
+with code `2` before any provider request. The default interface language is
+Simplified Chinese; `--lang en` selects English. User-facing output is a generic
+WorkPlan.
+
 When an API key is entered, the wizard can save it in `.nplan/config.toml`.
 That directory is ignored by this repository's `.gitignore`, but environment
 variables remain preferable for shared machines.

@@ -20,6 +20,36 @@ import { clarificationResult, plannedChineseResult } from './fixtures.js';
 
 const NODE = process.execPath;
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
+const PROVIDER_ENV_KEYS = [
+  'OPENAI_API_KEY', 'OPENROUTER_API_KEY', 'DASHSCOPE_API_KEY', 'DEEPSEEK_API_KEY',
+  'MOONSHOT_API_KEY', 'ZHIPUAI_API_KEY', 'QIANFAN_API_KEY', 'ARK_API_KEY',
+  'HUNYUAN_API_KEY', 'SILICONFLOW_API_KEY', 'MINIMAX_API_KEY', 'BAICHUAN_API_KEY',
+  'YI_API_KEY', 'STEPFUN_API_KEY', 'MODELSCOPE_API_KEY'
+];
+
+function isolatedEnv(overrides = {}) {
+  const next = { ...process.env };
+  for (const key of PROVIDER_ENV_KEYS) delete next[key];
+  return { ...next, ...overrides };
+}
+
+for (const key of PROVIDER_ENV_KEYS) delete process.env[key];
+
+test('CLI test process does not expose inherited built-in provider credentials', () => {
+  for (const key of PROVIDER_ENV_KEYS) assert.equal(process.env[key], undefined, key);
+});
+
+test('CLI child environment removes inherited provider keys before explicit overrides', () => {
+  const previous = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = 'inherited-secret';
+  try {
+    assert.equal(isolatedEnv().DEEPSEEK_API_KEY, undefined);
+    assert.equal(isolatedEnv({ DEEPSEEK_API_KEY: 'test-secret' }).DEEPSEEK_API_KEY, 'test-secret');
+  } finally {
+    if (previous === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = previous;
+  }
+});
 
 test('print mode returns one JSON result and exits', async () => {
   await withModelServer(async ({ configPath, env, seen }) => {
@@ -1651,7 +1681,7 @@ async function runCli(args, stdin = '', env = {}, cwd = process.cwd()) {
   const child = spawn(NODE, [CLI, ...args], {
     stdio: ['pipe', 'pipe', 'pipe'],
     cwd,
-    env: { ...process.env, ...env }
+    env: isolatedEnv(env)
   });
   let stdout = '';
   let stderr = '';

@@ -39,7 +39,14 @@ test('generic Markdown is Chinese-first and contains no software-review terminol
   assert.match(markdown, /# 工作计划/);
   assert.match(markdown, /## 行动步骤/);
   assert.match(markdown, /```mermaid\nflowchart TD/);
-  assert.doesNotMatch(markdown, /PRPlan|PR Plan|PR Draft|pull request|pr-plan/i);
+  const softwareReviewTerms = new RegExp([
+    ['PR', 'Plan'].join(''),
+    ['PR ', 'Plan'].join(''),
+    ['PR ', 'Draft'].join(''),
+    ['pull ', 'request'].join(''),
+    ['pr', '-plan'].join('')
+  ].join('|'), 'i');
+  assert.doesNotMatch(markdown, softwareReviewTerms);
   assert.doesNotMatch(markdown, /C:\\Users\\qiyue/);
   assert.ok(markdown.indexOf(workPlan.plan_id) > markdown.indexOf('## 原始标识'));
   assert.ok(markdown.indexOf('## 原始标识') > markdown.indexOf('## 下一步'));

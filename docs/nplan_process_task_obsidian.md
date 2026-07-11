@@ -22,7 +22,7 @@ tags:
 安装：
 
 ```cmd
-cd /d C:\Users\qiyue\Desktop\porgram\N_online_agent
+cd /d C:\path\to\nplan
 install
 ```
 
@@ -41,6 +41,17 @@ nplan consent status
 `nplan doctor` 只做本地配置、密钥和授权检查，不联网。`nplan doctor --online` 只允许向路径末段为 `models`、`health`、`healthz`、`status`、`ready` 或 `readiness`，且整条路径不含 chat、completions、responses、messages、embeddings 或 task(s) 段的只读地址发送一次 GET 探测。路径最多执行三轮有界解码；编码后的斜杠或反斜杠、畸形转义和无效 UTF-8 都会在零请求时拒绝。该探测不携带任务或本地上下文，也不会调用任务理解或计划接口。
 
 如果首次在交互式终端运行 `nplan` 时还没有模型配置，CLI 会先启动同一个 setup 向导；非交互场景仍只提示运行 `nplan setup`。
+
+## v0.2 使用约定
+
+- 默认界面和导出使用简体中文；`--lang en` 切换英文。
+- 已就绪任务先调用模型理解 TaskSpec，再单独调用模型生成 TaskPlan；需要澄清时不调用第二次，计划无效时也不会自动增加第三次调用。
+- 默认展示与导出通用 WorkPlan，不带软件开发专用术语。
+- 云端 Provider 在首次发送任务和项目上下文前需要项目授权；本地 Provider 无需授权。
+- session v2 可恢复、修改和导出计划，但不保存证据正文、来源内容、绝对路径、API Key 或 Authorization；v1 不兼容。
+- `doctor` 只做本地检查；只有 `doctor --online` 会执行一次受限的只读 Provider 连接探测。
+
+从 v0.1 升级时请注意：旧会话不会加载，旧的拉取请求专用渲染接口已移除，非交互云端打印模式必须先保存授权或显式传入 `--allow-cloud-context`。
 
 ## 核心概念
 

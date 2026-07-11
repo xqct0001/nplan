@@ -49,11 +49,3 @@ export {
   renderWorkPlanSources,
   renderWorkPlanTodo
 } from './work-plan.js';
-export {
-  defaultPrPlanExportPath,
-  derivePrPlan,
-  renderObsidianPrPlan,
-  renderPrPlanSources,
-  renderPrPlanTodo,
-  validatePrPlan
-} from './pr-plan.js';

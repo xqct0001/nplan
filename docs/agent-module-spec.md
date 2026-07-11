@@ -26,6 +26,24 @@ tools, create a UI, or manage remote agents. Network use is limited to:
 
 The doctor probe sends no task request or local context.
 
+## v0.2 Public Contract
+
+- Simplified Chinese is the default interface; `--lang en` selects English.
+- A ready request uses one model operation for TaskSpec understanding and one
+  for TaskPlan generation. Clarification stops after understanding, and an
+  invalid TaskPlan is reported without a third model operation.
+- The user-facing view and Markdown export are generic WorkPlan artifacts.
+- Cloud providers require project-scoped context consent before either model
+  operation. Local providers require no cloud consent.
+- Session v2 restores sanitized results and WorkPlan data without evidence
+  text, source contents, absolute paths, credentials, or authorization values.
+- `doctor` is offline; only explicit `doctor --online` performs the bounded
+  read-only provider probe described above.
+
+Compatibility is intentionally breaking: session v1 is not loaded, the v0.1
+pull-request-specific rendering surface is removed, and non-interactive cloud
+print use needs saved consent or `--allow-cloud-context`.
+
 ## JavaScript File Boundary
 
 - `src/schemas.js`: field lists, minimal JSON Schema artifacts, constructors.

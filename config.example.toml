@@ -12,6 +12,9 @@
 # selected provider's `models_url` (or `<base_url>/models`) when its final path
 # is models, health, healthz, status, ready, or readiness and the path contains
 # no task, chat, completion, response, message, or embedding route segment.
+# NPlan v0.2 uses Simplified Chinese by default (`--lang en` selects English).
+# A cloud provider needs project consent before either planning request; local
+# providers do not. A ready task uses separate TaskSpec and TaskPlan requests.
 
 model = "gpt-5.5"
 model_provider = "openai"

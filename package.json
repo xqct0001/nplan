@@ -1,6 +1,6 @@
 {
   "name": "nplan",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "NPlan: local task understanding and task decomposition in JavaScript.",
   "type": "module",
   "bin": {
