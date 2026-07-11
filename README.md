@@ -1,300 +1,108 @@
-# NPlan
+<p align="center">
+  <img src="assets/nplan-icon.svg" alt="NPlan icon" width="112">
+</p>
 
-Language: English | [简体中文](README.zh-CN.md)
+<h1 align="center">NPlan</h1>
 
-NPlan is a local task understanding and task decomposition module. It turns a
-natural-language request into structured planning artifacts.
+<p align="center"><strong>Turn an ambiguous request into a reviewable, revisable, and exportable work plan.</strong></p>
 
-NPlan is intentionally planning-only. It does not execute tasks, edit files, run
-shell commands, create user interfaces, or manage remote agents. Its job is to
-understand the request, ground that understanding in local context, and produce a
-bounded plan that another executor can review or run later.
+<p align="center">English · <a href="README.zh-CN.md">简体中文</a></p>
 
-## Core Capabilities
+NPlan is a local planning CLI. It reads bounded project context, clarifies the request, and produces validated planning artifacts: `TaskSpec`, `TaskPlan`, `ContextPack`, and a user-facing `WorkPlan`.
 
-- Produces a validated `TaskSpec` with goal, deliverables, constraints, missing
-  information, assumptions, success criteria, risk, provenance, and readiness.
-- Produces a validated `TaskPlan`: a bounded DAG with task inputs, outputs,
-  dependencies, and acceptance checks.
-- Builds a read-only `ContextPack` from local project files before model
-  inference.
-- Supports OKF-style local knowledge documents.
-- Uses configurable OpenAI-compatible model providers for semantic task
-  understanding.
-- Uses separate model operations for TaskSpec understanding and TaskPlan
-  generation when a request is ready, then derives a generic `WorkPlan`
-  locally for display and export.
-
-## Install
-
-```cmd
-cd /d C:\path\to\nplan
-install
-```
-
-Then open CMD anywhere and run:
-
-```cmd
-nplan providers
-nplan setup
-nplan
-```
-
-Remove the global command:
-
-```cmd
-uninstall
-```
-
-If you run the installer from PowerShell, use `.\install.cmd`. After
-installation, `nplan` is the command entry point.
+> [!IMPORTANT]
+> NPlan plans only. It does not execute tasks, run shell commands, edit source files, generate a UI, or manage remote agents.
 
 ## Quick Start
 
-`nplan setup` groups canonical providers into recommended cloud, local, and
-more choices. It lets you choose a provider, paste a masked API key, fetch model choices
-from the provider's OpenAI-compatible model list endpoint when available, and
-write `.nplan/config.toml`. That directory is ignored by git.
+Requirements: Windows and Node.js LTS.
 
-Run `nplan doctor` for offline configuration, API-key, and consent checks. Use
-`nplan doctor --online` only when you want to test the provider's models
-or read-only health endpoint. Unsafe task endpoints are rejected before fetch;
-the probe sends no task or local context.
-
-If no model is configured yet, running `nplan` in an interactive terminal starts
-the same first-run setup wizard before opening the planning session. Print mode
-still exits with a clear setup-required error.
-
-Start NPlan:
+From CMD in the repository directory:
 
 ```cmd
-nplan
-nplan "Plan the release checklist"
-nplan -p "Design a local file organizer that scans files, classifies them, and writes a Markdown report"
+install.cmd
+nplan setup
+nplan "Plan a release checklist for this project"
 ```
 
-The interface uses Simplified Chinese by default. Add `--lang en` for English:
+From PowerShell, run `.\install.cmd` instead. Setup writes project-local configuration to `.nplan/config.toml`, which is ignored by Git.
+
+## How It Works
+
+```text
+Request
+  → read-only ContextPack
+  → validated TaskSpec
+  → bounded TaskPlan DAG
+  → validated WorkPlan
+```
+
+If required information is missing, NPlan asks for clarification instead of inventing a plan. A ready request uses separate model calls for understanding and planning, followed by local validation.
+
+## Core Capabilities
+
+- Chinese-first interactive CLI with `--lang en` for English.
+- OpenAI-compatible cloud and local model providers.
+- Read-only local context with stable source and evidence identifiers.
+- Project-scoped consent before local context is sent to a cloud provider.
+- Sanitized local sessions with continue, resume, revise, and Markdown export.
+- Deterministic checks for completeness, provenance, DAG validity, and deliverable coverage.
+
+## Common Commands
+
+| Command | Purpose |
+| --- | --- |
+| `nplan setup` | Configure a provider, API key, and model. |
+| `nplan providers` | List built-in providers. |
+| `nplan doctor` | Check local configuration without network access. |
+| `nplan doctor --online` | Probe an allowlisted read-only models or health endpoint. |
+| `nplan "<request>"` | Start or continue an interactive planning session. |
+| `nplan -p --output-format summary "<request>"` | Print one concise planning result. |
+| `nplan -c` | Continue the latest local session. |
+| `nplan resume [id]` | Resume a saved session. |
+| `nplan consent status` | Show cloud-context consent status. |
+| `nplan consent revoke` | Revoke saved cloud-context consent. |
+
+Inside an interactive session, use `/帮助` or `/help` to list commands. Useful actions include `/修改`, `/来源`, `/步骤`, `/导出`, `/继续`, and `/恢复`.
+
+## Typical Use
+
+Interactive planning:
+
+```cmd
+nplan "Break the v0.3 release into reviewable tasks"
+```
+
+One-shot summary:
+
+```cmd
+nplan -p --output-format summary "Plan a safe database migration"
+```
+
+English interface:
 
 ```cmd
 nplan --lang en "Plan the release checklist"
 ```
 
-## CLI
+## Models, Safety, and Privacy
 
-```text
-nplan [options] [prompt]
+Run `nplan setup` to choose a provider. Recommended cloud choices include DeepSeek, DashScope, Kimi, Zhipu AI, and Doubao; local choices include Ollama and LM Studio. Custom OpenAI-compatible providers are also supported.
 
-Commands:
-  exec [options] [prompt]
-                    Print one planning result and exit
-  setup             Guided provider/API key/model setup wizard
-  consent [status|revoke]
-                    Show or revoke project cloud-context consent
-  providers         List built-in model providers
-  resume [id]       Resume a saved planning session
-  doctor [--online] Check local configuration; optionally test a models/health endpoint
+- Local providers do not require cloud-context consent.
+- Cloud providers require project-and-scope consent before either planning request.
+- Non-interactive cloud use needs saved consent or the one-shot `--allow-cloud-context` flag.
+- `nplan doctor` is offline by default; networking occurs only with `doctor --online`.
+- Sanitized sessions are stored under `.nplan/sessions/` without source contents, evidence text, credentials, or authorization values.
 
-Options:
-  -p, --print       Print one JSON result and exit
-  --output-format <json|summary|text>
-                    Select print-mode output format
-  --input-format text
-                    Accept text from argv or stdin
-  -c, --continue    Continue the latest local planning session
-  -r, --resume [id] Resume a saved planning session
-  --model <name>    Use a model for semantic task understanding
-  --provider <id>   Select a model provider
-  --models-url <u>  Model list URL for guided/custom provider setup
-  --config-path <p> Load model config TOML
-  --config key=value
-                    Override config with dotted keys
-  --allow-cloud-context
-                    Allow cloud context for this invocation only
-  --lang <zh-CN|en> Select interface language (default: zh-CN)
-  -V, --version     Show version
-```
+## Documentation
 
-Legacy `-c key=value` config overrides still work, but `-c` by itself now
-matches Claude Code and means `--continue`.
-
-Interactive commands use concise Chinese aliases by default; the English forms
-remain supported:
-
-```text
-/帮助              /help
-/服务商            /providers
-/状态              /status
-/配置, /设置       /config, /settings
-/模型 [name]       /model [name]
-/上下文            /context
-/来源              /sources
-/步骤              /todo
-/修改 <text>       /revise <text>
-/导出 [path]       /export [path]
-/规划 <prompt>     /plan <prompt>
-/完整              /json
-/压缩 [note]       /compact [note]
-/清除, /重置, /新建 /clear, /reset, /new
-/继续              /continue
-/恢复 [id]         /resume [id]
-/退出, /结束       /exit, /quit
-```
-
-`/步骤` and `/来源` are read-only views of the latest WorkPlan and its sources.
-Direct text after a WorkPlan, `/revise <additional context>`, or a prompt passed
-with `--resume` revises the latest plan; `/new` clears that state. `/export` is the only interactive command that writes
-a new planning artifact; without a path it writes `.nplan/exports/<plan-id>.md`,
-and with a path it writes the requested Markdown file. The export is an
-Obsidian-friendly WorkPlan, not an executed task.
-
-The CLI follows Claude Code's command-line interaction shape where that fits a
-planning-only module: no arguments opens a session, a quoted prompt seeds a
-session, `-p` prints one result, stdin can be piped into print mode, and
-`--continue` / `--resume` reuse local session notes. It also keeps Codex-style
-command entry points for `exec`, `resume`, and `doctor`. Sanitized session v2
-records are stored under `.nplan/sessions/`, which is ignored by git. They keep
-the latest result and WorkPlan so `/todo`, `/sources`, and `/export` work
-immediately after resume. Evidence text, absolute paths, API keys, authorization
-headers, and source contents are not persisted; v1 sessions are explicitly
-incompatible rather than being restored as partial state. Restored WorkPlans
-are validated again; a tampered or invalid plan is quarantined, announced as
-unavailable, and cannot enter views, revision summaries, or exports.
-
-Only a `planned` result exposes WorkPlan steps and plan acceptance. Invalid or
-clarification results keep those sections empty. Every renderer and export
-validates the WorkPlan and returns a safe replan prompt instead of partial data.
-
-Local providers run without a cloud-consent prompt. Cloud providers require
-authorization before either model request. Interactive mode previews bounded
-relative sources, accepts project-relative exclusions, and can remember the
-provider-and-scope fingerprint in `.nplan/consent.json`. Use
-`--allow-cloud-context` for one invocation only, and `nplan consent status` or
-`nplan consent revoke` to inspect or remove saved project consent. Non-interactive
-cloud calls without valid consent exit with code `2` before any model request.
-
-## v0.2 Breaking Changes
-
-- Session v1 files are not loaded. Session v2 restores the latest sanitized
-  result and WorkPlan, but never stores evidence text or absolute paths.
-- The v0.1 pull-request-specific planning and rendering exports are removed.
-  Use `deriveWorkPlan` and the WorkPlan renderers from `src/index.js`.
-- Non-interactive cloud print commands must save project consent first or pass
-  `--allow-cloud-context` for that invocation. Local providers need no consent.
-
-Shell execution through `!`, file editing, tool permission modes, MCP tool
-configuration, and remote-agent orchestration are intentionally unsupported.
-`/export` is the explicit boundary exception: it writes a user-requested
-Markdown planning artifact only, without editing source files, creating a real
-PR, or executing tasks.
-
-## Model Providers
-
-List built-ins:
-
-```cmd
-nplan providers
-```
-
-Configure a provider:
-
-```cmd
-nplan setup
-```
-
-Supported provider families include:
-
-- Local runtimes: `ollama`, `lmstudio`, `vllm`, `llamacpp`, `localai`
-- OpenAI-compatible gateways: `openai`, `openrouter`
-- Chinese providers and aliases: `dashscope`, `tongyi`, `qwen`, `deepseek`,
-  `moonshot`, `kimi`, `zhipu`, `bigmodel`, `glm`, `qianfan`, `wenxin`,
-  `volcengine_ark`, `doubao`, `tencent_hunyuan`, `hunyuan`, `siliconflow`,
-  `minimax`, `baichuan`, `yi`, `stepfun`, `modelscope`
-
-Some OpenAI-compatible APIs reject JSON-mode request parameters. NPlan supports
-provider-level compatibility flags such as `response_format = "none"` for those
-providers.
-
-See [docs/model-providers.md](docs/model-providers.md) and
-[config.example.toml](config.example.toml).
-
-## Local Knowledge
-
-NPlan adopts the local, vendor-neutral part of the Knowledge Catalog OKF pattern:
-
-- Markdown with YAML frontmatter
-- one concept per file
-- `index.md` files for progressive disclosure
-- Markdown links for relationships
-- citations for sourced claims
-
-Project-owned knowledge lives in [docs/nplan_knowledge](docs/nplan_knowledge/).
-The human-facing guide is [docs/local-knowledge.md](docs/local-knowledge.md).
-
-The upstream reference copy under `DOC/knowledge-catalog/` is kept for human
-study but ignored by default context discovery so it does not crowd out this
-project's own sources.
-
-## Library Usage
-
-```js
-import {
-  LocalPlanningAgent,
-  OpenAICompatiblePlanningModel,
-  deriveWorkPlan,
-  loadModelConfig
-} from './src/index.js';
-
-const config = await loadModelConfig();
-const modelClient = new OpenAICompatiblePlanningModel({ config });
-const agent = new LocalPlanningAgent({ modelClient });
-
-const result = await agent.analyzeAsync(
-  'Design a local file organizer that scans files, classifies them, and writes a Markdown report',
-  { cloud_context_authorized: true } // only after your application obtains consent
-);
-
-console.log(deriveWorkPlan(result));
-```
-
-## Project Layout
-
-```text
-AGENTS.md              Agent operating instructions for this repository
-src/
-  agent.js              LocalPlanningAgent facade
-  cli.js                command-line interface
-  context.js            local context discovery
-  context-curator.js    source ranking and evidence pack builder
-  context-policy.js     context discovery defaults
-  conflicts.js          request/context conflict detection
-  i18n.js               CLI locales and slash-command aliases
-  model-client.js       OpenAI-compatible model client
-  model-config.js       model provider configuration
-  model-errors.js       safe provider error messages and next actions
-  model-init.js         project config writer
-  model-wizard.js       guided model setup wizard
-  okf.js                OKF-style Markdown parser
-  planning.js           TaskPlan DAG generation
-  provenance.js         SourceRef and EvidenceItem helpers
-  schemas.js            schema artifacts and constructors
-  understanding.js      TaskSpec normalization
-  validation.js         TaskSpec and TaskPlan validators
-  work-plan.js          user-facing generic WorkPlan
-
-docs/
-  agent-design-prompt-lessons.md
-  agent-module-spec.md
-  local-knowledge.md
-  model-providers.md
-  nplan_knowledge/
-```
-
-## Development
-
-```powershell
-npm.cmd test
-```
+- [Module contract](docs/agent-module-spec.md)
+- [Model providers](docs/model-providers.md)
+- [Local knowledge](docs/local-knowledge.md)
+- [Planning and Obsidian workflow](docs/nplan_process_task_obsidian.md)
+- [Project knowledge index](docs/nplan_knowledge/index.md)
 
 ## License
 
-MIT
+[MIT](LICENSE)
