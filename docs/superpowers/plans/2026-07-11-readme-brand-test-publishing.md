@@ -95,6 +95,7 @@ Expected: one new SVG file committed; no README or test changes yet.
 
 **Files:**
 - Modify: `README.md`
+- Modify during review: `docs/superpowers/plans/2026-07-11-readme-brand-test-publishing.md` (canonical target wording only)
 
 **Interfaces:**
 - Consumes: `assets/nplan-icon.svg`, current CLI help, `install.cmd`, and focused documents under `docs/`.
@@ -252,7 +253,7 @@ git add README.md
 git commit -m "docs: rewrite English README"
 ```
 
-Expected: only `README.md` committed in this task.
+Expected: `README.md` is committed; if review corrections change canonical target wording, the plan may be included in a separate review-fix commit.
 
 ### Task 3: Rewrite the Chinese README as an equivalent mirror
 
@@ -372,7 +373,7 @@ nplan --lang en "Plan the release checklist"
 - 本地服务商不需要云端上下文授权。
 - 云端服务商在两次规划请求前都需要有效的项目与范围授权。
 - 非交互式云端调用需要已保存授权，或使用仅本次有效的 `--allow-cloud-context`。
-- `nplan doctor` 默认不联网；只有 `doctor --online` 会发起网络探测。
+- 在 `nplan doctor` 命令中，只有指定 `--online` 才会发起网络探测。
 - 脱敏会话保存在 `.nplan/sessions/`，不包含源文件内容、证据文本、凭据或授权值。
 
 ## 文档
