@@ -10,10 +10,10 @@ export function deriveWorkPlan(result, options = {}) {
     result?.taskspec?.inferred_goal,
     locale === 'en' ? 'Planning goal to confirm' : '待确认规划目标'
   );
-  const tasks =
-    result?.status !== 'needs_clarification' && Array.isArray(result?.taskplan?.tasks)
-      ? result.taskplan.tasks
-      : [];
+  const planned = result?.status === 'planned';
+  const tasks = planned && Array.isArray(result?.taskplan?.tasks)
+    ? result.taskplan.tasks
+    : [];
 
   return {
     version: '1.0',
@@ -26,15 +26,18 @@ export function deriveWorkPlan(result, options = {}) {
       result?.clarification_questions || result?.taskspec?.clarification?.questions
     ),
     steps: tasks.map(normalizeStep),
-    acceptance: stringArray(
-      result?.taskplan?.global_acceptance || result?.taskspec?.success_criteria
-    ),
+    acceptance: planned
+      ? stringArray(result?.taskplan?.global_acceptance || result?.taskspec?.success_criteria)
+      : [],
     source_summary: relativeSources(result?.taskspec?.source_map),
     next_actions: nextActionsFor(result, locale)
   };
 }
 
 export function renderWorkPlanTodo(workPlan) {
+  if (!validateWorkPlan(workPlan).valid) {
+    return invalidWorkPlanMessage(workPlan?.language);
+  }
   const locale = workPlan?.language === 'en' ? 'en' : 'zh-CN';
   const labels = messages(locale);
   const steps = Array.isArray(workPlan?.steps) ? workPlan.steps : [];
@@ -66,6 +69,9 @@ export function renderWorkPlanTodo(workPlan) {
 }
 
 export function renderWorkPlanSources(workPlan) {
+  if (!validateWorkPlan(workPlan).valid) {
+    return invalidWorkPlanMessage(workPlan?.language);
+  }
   const locale = workPlan?.language === 'en' ? 'en' : 'zh-CN';
   const labels = messages(locale);
   const sources = safeSourcesForRendering(workPlan?.source_summary);
@@ -85,6 +91,9 @@ export function renderWorkPlanSources(workPlan) {
 }
 
 export function renderWorkPlanMarkdown(workPlan) {
+  if (!validateWorkPlan(workPlan).valid) {
+    throw new Error('WorkPlan validation failed; replan before export.');
+  }
   const locale = workPlan?.language === 'en' ? 'en' : 'zh-CN';
   const labels = messages(locale);
   const steps = Array.isArray(workPlan?.steps) ? workPlan.steps : [];
@@ -143,6 +152,12 @@ export function renderWorkPlanMarkdown(workPlan) {
 
 export function defaultWorkPlanExportPath(workPlan) {
   return `.nplan/exports/${safeFilenameComponent(workPlan?.plan_id)}.md`;
+}
+
+export function invalidWorkPlanMessage(locale = 'zh-CN') {
+  return locale === 'en'
+    ? 'Work plan unavailable because validation failed. Replan before viewing or exporting it.'
+    : '工作计划校验失败，无法查看或导出；请重新规划。';
 }
 
 function normalizeStep(task, index) {

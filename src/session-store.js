@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/p
 import { join, resolve } from 'node:path';
 
 import { normalizeUserExclusions } from './context-policy.js';
+import { validateWorkPlan } from './validation.js';
 
 const SESSION_VERSION = '2.0';
 const MAX_CANONICAL_DECODE_ROUNDS = 3;
@@ -158,7 +159,8 @@ function sanitizeTurn(turn = {}) {
 
 function sanitizeWorkPlan(workPlan) {
   if (!workPlan || typeof workPlan !== 'object') return null;
-  return {
+  if (!validateWorkPlan(workPlan).valid) return null;
+  const sanitized = {
     version: safeText(workPlan.version),
     plan_id: safeText(workPlan.plan_id),
     session_id: safeText(workPlan.session_id),
@@ -179,6 +181,7 @@ function sanitizeWorkPlan(workPlan) {
     source_summary: sanitizeSources(workPlan.source_summary),
     next_actions: textArray(workPlan.next_actions)
   };
+  return validateWorkPlan(sanitized).valid ? sanitized : null;
 }
 
 function sanitizeTaskSpec(taskspec) {

@@ -325,6 +325,18 @@ export function validateWorkPlan(workPlan) {
     if (steps.length) issues.push('clarification_with_steps');
     if (!questions.items.length) issues.push('clarification_without_questions');
   }
+  if (
+    ['needs_clarification', 'plan_invalid'].includes(workPlan.status) &&
+    steps.length
+  ) {
+    issues.push('non_planned_with_steps');
+  }
+  if (
+    ['needs_clarification', 'plan_invalid'].includes(workPlan.status) &&
+    acceptance.items.length
+  ) {
+    issues.push('non_planned_with_acceptance');
+  }
   if (!nextActions.items.length) issues.push('missing_next_actions');
 
   const sourceIds = new Set();

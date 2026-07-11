@@ -122,9 +122,11 @@ Session v2 data under `.nplan/sessions/` is separate from consent and never
 restores source evidence into the context pack. It retains a sanitized planning
 result and WorkPlan for `/todo`, `/sources`, and `/export`, while omitting
 evidence text, source contents, absolute paths, API keys, and authorization
-values. Session v1 is explicitly incompatible. A prompt supplied with
-`--resume` is composed as a revision from this sanitized result and WorkPlan;
-no source evidence is rehydrated.
+values. Every stored and restored WorkPlan is validated; invalid data is
+quarantined as unavailable before views, revision summaries, or export. Session
+v1 is explicitly incompatible. A prompt supplied with `--resume` is composed
+as a revision only when a valid sanitized WorkPlan is restored; no source
+evidence is rehydrated.
 
 ## Adding A New Concept
 

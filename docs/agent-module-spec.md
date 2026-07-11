@@ -21,8 +21,10 @@ tools, create a UI, or manage remote agents. Network use is limited to:
 - one explicit `doctor --online` GET probe to an allowlisted read-only
   `models`, `health`, `healthz`, `status`, `ready`, or `readiness` endpoint
   whose path contains no task, chat, completion, response, message, or
-  embedding route segment. Path validation performs up to three bounded decode
-  rounds and rejects encoded separators, malformed escapes, and invalid UTF-8.
+  embedding route segment. The probe never follows redirects, treats any 3xx
+  as unsafe, discards the response body, and accepts any 2xx without requiring
+  JSON. Path validation performs up to three bounded decode rounds and rejects
+  encoded separators, malformed escapes, and invalid UTF-8.
 
 The doctor probe sends no task request or local context.
 
@@ -37,6 +39,8 @@ The doctor probe sends no task request or local context.
   operation. Local providers require no cloud consent.
 - Session v2 restores sanitized results and WorkPlan data without evidence
   text, source contents, absolute paths, credentials, or authorization values.
+  Every restored WorkPlan is revalidated; invalid saved plans are quarantined
+  as unavailable and cannot reach revision summaries, views, or export.
 - `doctor` is offline; only explicit `doctor --online` performs the bounded
   read-only provider probe described above.
 
@@ -96,6 +100,10 @@ print use needs saved consent or `--allow-cloud-context`.
 - Required deliverables are covered by task outputs.
 - Default `max_tasks` is `12`.
 - Invalid planner policy is reported in `policy_errors`.
+
+Only `planned` results may expose WorkPlan steps or plan-level acceptance.
+Clarification and invalid-plan results keep both lists empty. All WorkPlan
+rendering, persistence, restoration, and export boundaries re-run validation.
 
 ## Fixed Agent Roles
 

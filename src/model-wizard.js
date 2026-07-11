@@ -77,6 +77,31 @@ export async function fetchProviderModels({ provider, apiKey = '', fetchImpl = g
   return extractModelIds(await response.json());
 }
 
+export async function probeProviderHealth({ provider, apiKey = '', fetchImpl = globalThis.fetch }) {
+  if (typeof fetchImpl !== 'function') throw new Error('fetch is not available in this Node.js runtime');
+  const url = provider.models_url || modelListUrl(provider.base_url);
+  const headers = { Accept: '*/*' };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
+  const response = await fetchImpl(url, {
+    method: 'GET',
+    headers,
+    redirect: 'manual',
+    signal: AbortSignal.timeout(Number(provider.timeout_ms || 60000))
+  });
+  await response.body?.cancel();
+  if (response.status >= 300 && response.status < 400) {
+    throw Object.assign(new Error('doctor health endpoint redirected'), {
+      code: 'unsafe_health_endpoint'
+    });
+  }
+  if (!response.ok) {
+    const error = new Error(`health probe returned HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+}
+
 export function extractModelIds(payload) {
   const candidates = Array.isArray(payload?.data)
     ? payload.data

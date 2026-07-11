@@ -60,9 +60,29 @@ test('clarification result derives questions without fake steps or graph', () =>
 
   assert.equal(workPlan.status, 'needs_clarification');
   assert.deepEqual(workPlan.steps, []);
+  assert.deepEqual(workPlan.acceptance, []);
   assert.deepEqual(workPlan.questions, ['儿童年龄是多少？']);
   assert.match(markdown, /儿童年龄是多少？/);
   assert.doesNotMatch(markdown, /```mermaid/);
+});
+
+test('plan_invalid result never derives task steps or acceptance from an invalid draft', () => {
+  const result = plannedChineseResult();
+  result.status = 'plan_invalid';
+  result.taskplan.tasks.push({
+    ...structuredClone(result.taskplan.tasks[0]),
+    title: 'UNSAFE-DUPLICATE-STEP',
+    outputs: [],
+    acceptance: [],
+    dependencies: ['T404']
+  });
+
+  const workPlan = deriveWorkPlan(result, { locale: 'en' });
+
+  assert.deepEqual(workPlan.steps, []);
+  assert.deepEqual(workPlan.acceptance, []);
+  assert.equal(validateWorkPlan(workPlan).valid, true);
+  assert.doesNotMatch(renderWorkPlanTodo(workPlan), /UNSAFE-DUPLICATE-STEP/);
 });
 
 test('todo and default export path use generic WorkPlan naming', () => {
@@ -193,6 +213,49 @@ test('WorkPlan validator enforces pending state, dependency references, and DAG 
   assert.ok(validateWorkPlan(duplicate).issues.includes('duplicate_step_ids'));
 });
 
+test('non-planned WorkPlans reject task steps and plan acceptance', () => {
+  for (const status of ['needs_clarification', 'plan_invalid']) {
+    const workPlan = validWorkPlan();
+    workPlan.status = status;
+    workPlan.questions = status === 'needs_clarification' ? ['Confirm scope?'] : [];
+
+    const report = validateWorkPlan(workPlan);
+
+    assert.equal(report.valid, false);
+    assert.ok(report.issues.includes('non_planned_with_steps'));
+    assert.ok(report.issues.includes('non_planned_with_acceptance'));
+  }
+});
+
+test('renderers do not expose an invalid WorkPlan through direct API calls', () => {
+  const workPlan = validWorkPlan();
+  workPlan.language = 'en';
+  workPlan.steps.push({
+    ...structuredClone(workPlan.steps[0]),
+    title: 'UNSAFE-TAMPERED-STEP',
+    dependencies: ['T404'],
+    outputs: [],
+    acceptance: []
+  });
+  workPlan.source_summary.push({
+    source_id: 'S1',
+    kind: 'file',
+    relative_path: 'private/UNSAFE-TAMPERED-SOURCE.md',
+    title: ''
+  });
+
+  const todo = renderWorkPlanTodo(workPlan);
+  const sources = renderWorkPlanSources(workPlan);
+
+  assert.match(todo, /Work plan unavailable.*replan/i);
+  assert.match(sources, /Work plan unavailable.*replan/i);
+  assert.doesNotMatch(`${todo}\n${sources}`, /UNSAFE-TAMPERED/);
+  assert.throws(
+    () => renderWorkPlanMarkdown(workPlan),
+    /WorkPlan validation failed.*replan/i
+  );
+});
+
 test('default WorkPlan export path sanitizes an unsafe plan id to one filename component', () => {
   for (const planId of ['../../outside', '..\\..\\outside', 'file:///C:/Users/qiyue/outside']) {
     const exportPath = defaultWorkPlanExportPath({ plan_id: planId });
@@ -228,7 +291,10 @@ test('unsafe source paths are invalid and never cross a rendering boundary', () 
   ];
 
   const sources = renderWorkPlanSources(workPlan);
-  const markdown = renderWorkPlanMarkdown(workPlan);
+  assert.throws(
+    () => renderWorkPlanMarkdown(workPlan),
+    /WorkPlan validation failed.*replan/i
+  );
 
   for (const unsafePath of unsafePaths) {
     const probe = validWorkPlan();
@@ -239,11 +305,9 @@ test('unsafe source paths are invalid and never cross a rendering boundary', () 
     assert.equal(report.valid, false, unsafePath);
     assert.ok(report.issues.includes('source_path_not_relative'), unsafePath);
   }
-  assert.match(sources, /docs\/guide\.md/);
-  assert.match(markdown, /docs\/guide\.md/);
+  assert.match(sources, /工作计划校验失败/);
   for (const unsafePath of unsafePaths) {
     assert.doesNotMatch(sources, new RegExp(escapeRegex(unsafePath)));
-    assert.doesNotMatch(markdown, new RegExp(escapeRegex(unsafePath)));
   }
 });
 
@@ -282,17 +346,16 @@ test('duplicate or missing source ids are invalid and omitted by renderers', () 
 
   const report = validateWorkPlan(workPlan);
   const sources = renderWorkPlanSources(workPlan);
-  const markdown = renderWorkPlanMarkdown(workPlan);
 
   assert.equal(report.valid, false);
   assert.ok(report.issues.includes('duplicate_source_ids'));
   assert.ok(report.issues.includes('source_missing_id'));
-  for (const rendered of [sources, markdown]) {
-    assert.match(rendered, /docs\/first\.md/);
-    assert.match(rendered, /docs\/second\.md/);
-    assert.doesNotMatch(rendered, /docs\/duplicate\.md/);
-    assert.doesNotMatch(rendered, /docs\/missing-id\.md/);
-  }
+  assert.match(sources, /工作计划校验失败/);
+  assert.doesNotMatch(sources, /docs\/(?:first|second|duplicate|missing-id)\.md/);
+  assert.throws(
+    () => renderWorkPlanMarkdown(workPlan),
+    /WorkPlan validation failed.*replan/i
+  );
 });
 
 function plannedChineseResult() {

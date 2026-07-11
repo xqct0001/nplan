@@ -226,6 +226,53 @@ test('resumed session restores todo, sources, and export capability', async () =
   });
 });
 
+test('tampered session WorkPlan cannot reach resume todo, sources, revision, or export', async () => {
+  await withLocalModelServer(async ({ configPath, cwd, env, seen }) => {
+    const first = await runCli(
+      ['--config-path', configPath],
+      '规划北京亲子游\n/退出\n',
+      env,
+      cwd
+    );
+    assert.equal(first.code, 0);
+
+    const sessionNames = await readdir(join(cwd, '.nplan', 'sessions'));
+    const path = join(cwd, '.nplan', 'sessions', sessionNames[0]);
+    const tampered = JSON.parse(await readFile(path, 'utf8'));
+    for (const workPlan of [tampered.last_work_plan, tampered.turns.at(-1).work_plan]) {
+      workPlan.steps.push({
+        ...structuredClone(workPlan.steps[0]),
+        title: 'UNSAFE-TAMPERED-STEP',
+        dependencies: ['T404'],
+        outputs: [],
+        acceptance: []
+      });
+      workPlan.source_summary.push({
+        source_id: 'S1',
+        relative_path: 'private/UNSAFE-TAMPERED-SOURCE.md'
+      });
+    }
+    await writeFile(path, JSON.stringify(tampered), 'utf8');
+    seen.length = 0;
+
+    const resumed = await runCli(
+      ['--lang', 'en', '--config-path', configPath, '--resume', 'latest'],
+      '/todo\n/sources\n/export\nadjust the budget\n/exit\n',
+      env,
+      cwd
+    );
+
+    assert.equal(resumed.code, 0, resumed.stderr || resumed.stdout);
+    assert.match(resumed.stdout, /saved WorkPlan was invalid.*not restored/i);
+    assert.match(resumed.stdout, /Work plan unavailable.*replan/i);
+    assert.match(resumed.stdout, /Nothing to export yet/i);
+    assert.doesNotMatch(resumed.stdout, /UNSAFE-TAMPERED/);
+    assert.equal(seen.length, 2);
+    assert.doesNotMatch(modelUserPrompt(seen[0].body), /Previous plan:|UNSAFE-TAMPERED/);
+    await assert.rejects(readFile(join(cwd, '.nplan', 'exports'), 'utf8'));
+  });
+});
+
 test('saved project consent is reused without a prompt', async () => {
   await withCloudModelServer(async ({ configPath, cwd, env, seen }) => {
     await saveMatchingConsent({ configPath, cwd, env, request: '规划北京亲子游' });
@@ -1560,6 +1607,48 @@ test('online doctor preserves legal percent-encoded non-separator path segments'
   }, { modelsPath });
 });
 
+for (const mode of ['same-origin', 'cross-origin']) {
+  test(`online doctor rejects ${mode} redirects without requesting the redirected task endpoint`, async () => {
+    await withRedirectHealthServers(mode, async ({ configPath, cwd, env, initialRequests, forbiddenRequests }) => {
+      const result = await runCli(
+        ['doctor', '--online', '--lang', 'en', '--config-path', configPath],
+        '',
+        env,
+        cwd
+      );
+
+      assert.equal(result.code, 1);
+      assert.deepEqual(initialRequests.map((item) => item.url), ['/v1/health']);
+      assert.equal(forbiddenRequests.length, 0);
+      assert.match(result.stdout, /health-check endpoint is unsafe/i);
+      assert.match(result.stdout, /Next step:/);
+    });
+  });
+}
+
+for (const [modelsPath, body, contentType] of [
+  ['/v1/health', 'ok', 'text/plain'],
+  ['/v1/healthz', '', 'text/plain'],
+  ['/v1/models', '', 'application/json']
+]) {
+  test(`online doctor accepts a successful body-independent probe at ${modelsPath}`, async () => {
+    await withHealthServer(async ({ configPath, requests, cwd, env }, response) => {
+      response.body = body;
+      response.contentType = contentType;
+      const result = await runCli(
+        ['doctor', '--online', '--lang', 'en', '--config-path', configPath],
+        '',
+        env,
+        cwd
+      );
+
+      assert.equal(result.code, 0, result.stdout);
+      assert.equal(requests.length, 1);
+      assert.match(result.stdout, /connection healthy/i);
+    }, { modelsPath });
+  });
+}
+
 test('print mode formats provider failures without exposing response secrets', async () => {
   await withFailingModelServer(async ({ configPath, cwd, env }) => {
     const result = await runCli(
@@ -1701,17 +1790,18 @@ async function withHealthServer(fn, { modelsPath = '/v1/models' } = {}) {
   const responseControl = {
     status: 200,
     body: JSON.stringify({ data: [{ id: 'semantic-test-model' }] }),
+    contentType: 'application/json',
     delayMs: 0
   };
   const server = createServer((request, response) => {
     requests.push({ url: request.url, method: request.method });
-    if (!request.url.endsWith('/models')) {
+    if (request.url !== modelsPath) {
       response.writeHead(500, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ error: 'doctor must only call /models' }));
       return;
     }
     const send = () => {
-      response.writeHead(responseControl.status, { 'content-type': 'application/json' });
+      response.writeHead(responseControl.status, { 'content-type': responseControl.contentType });
       response.end(responseControl.body);
     };
     if (responseControl.delayMs) setTimeout(send, responseControl.delayMs);
@@ -1739,6 +1829,70 @@ async function withHealthServer(fn, { modelsPath = '/v1/models' } = {}) {
     );
   } finally {
     server.close();
+    await rm(cwd, { recursive: true, force: true });
+  }
+}
+
+async function withRedirectHealthServers(mode, fn) {
+  const initialRequests = [];
+  const forbiddenRequests = [];
+  const forbiddenServer = createServer((request, response) => {
+    forbiddenRequests.push({
+      url: request.url,
+      authorization: request.headers.authorization || ''
+    });
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ data: [] }));
+  });
+  await new Promise((resolve) => forbiddenServer.listen(0, '127.0.0.1', resolve));
+  const forbiddenPort = forbiddenServer.address().port;
+
+  let primaryPort;
+  const primaryServer = createServer((request, response) => {
+    if (request.url === '/v1/health') {
+      initialRequests.push({ url: request.url, authorization: request.headers.authorization || '' });
+      const location = mode === 'same-origin'
+        ? '/v1/chat/completions'
+        : `http://127.0.0.1:${forbiddenPort}/v1/responses`;
+      response.writeHead(302, { location });
+      response.end();
+      return;
+    }
+    forbiddenRequests.push({
+      url: request.url,
+      authorization: request.headers.authorization || ''
+    });
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ data: [] }));
+  });
+  await new Promise((resolve) => primaryServer.listen(0, '127.0.0.1', resolve));
+  primaryPort = primaryServer.address().port;
+
+  const cwd = await mkdtemp(join(tmpdir(), `nplan-doctor-redirect-${mode}-`));
+  const configPath = join(cwd, 'config.toml');
+  await writeFile(configPath, [
+    'model = "semantic-test-model"',
+    'model_provider = "cloudtest"',
+    '[model_providers.cloudtest]',
+    `base_url = "http://127.0.0.1:${primaryPort}/v1"`,
+    `models_url = "http://127.0.0.1:${primaryPort}/v1/health"`,
+    'context_location = "cloud"',
+    'env_key = "FAKE_MODEL_KEY"',
+    'wire_api = "chat_completions"',
+    'timeout_ms = 1000'
+  ].join('\n'), 'utf8');
+
+  try {
+    return await fn({
+      configPath,
+      cwd,
+      env: { FAKE_MODEL_KEY: 'redirect-secret' },
+      initialRequests,
+      forbiddenRequests
+    });
+  } finally {
+    primaryServer.close();
+    forbiddenServer.close();
     await rm(cwd, { recursive: true, force: true });
   }
 }

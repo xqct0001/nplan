@@ -90,6 +90,55 @@ test('session writes atomically and leaves no temporary file', async () => {
   assert.deepEqual(names, [`${session.id}.json`]);
 });
 
+test('recording and saving quarantine an invalid WorkPlan', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'nplan-session-invalid-record-'));
+  const session = createSession();
+  const result = plannedChineseResult();
+  const workPlan = deriveWorkPlan(result, { sessionId: session.id });
+  workPlan.steps[0].outputs = [];
+  workPlan.steps[0].acceptance = [];
+
+  recordSessionTurn(session, { request: 'plan safely', result, workPlan });
+  const saved = await saveSession(root, session);
+
+  assert.equal(saved.last_work_plan, null);
+  assert.equal(saved.turns[0].work_plan, null);
+});
+
+test('loading a tampered v2 session quarantines every invalid WorkPlan', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'nplan-session-tampered-workplan-'));
+  const session = createSession();
+  const result = plannedChineseResult();
+  recordSessionTurn(session, {
+    request: 'plan safely',
+    result,
+    workPlan: deriveWorkPlan(result, { sessionId: session.id })
+  });
+  await saveSession(root, session);
+
+  const path = sessionFile(root, session.id);
+  const tampered = JSON.parse(await readFile(path, 'utf8'));
+  for (const workPlan of [tampered.last_work_plan, tampered.turns[0].work_plan]) {
+    workPlan.steps.push({
+      ...structuredClone(workPlan.steps[0]),
+      title: 'UNSAFE-TAMPERED-STEP',
+      dependencies: ['T404'],
+      outputs: [],
+      acceptance: []
+    });
+  }
+  await writeFile(path, JSON.stringify(tampered), 'utf8');
+
+  const loaded = await loadSession(root, session.id);
+  const latest = await loadLatestSession(root);
+
+  assert.equal(loaded.last_result.status, 'planned');
+  assert.equal(loaded.last_work_plan, null);
+  assert.equal(loaded.turns[0].work_plan, null);
+  assert.equal(latest.last_work_plan, null);
+  assert.equal(latest.turns[0].work_plan, null);
+});
+
 test('v1 session returns an explicit incompatibility result', async () => {
   const root = await writeV1Session();
   const loaded = await loadLatestSession(root);

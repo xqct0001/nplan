@@ -156,7 +156,13 @@ records are stored under `.nplan/sessions/`, which is ignored by git. They keep
 the latest result and WorkPlan so `/todo`, `/sources`, and `/export` work
 immediately after resume. Evidence text, absolute paths, API keys, authorization
 headers, and source contents are not persisted; v1 sessions are explicitly
-incompatible rather than being restored as partial state.
+incompatible rather than being restored as partial state. Restored WorkPlans
+are validated again; a tampered or invalid plan is quarantined, announced as
+unavailable, and cannot enter views, revision summaries, or exports.
+
+Only a `planned` result exposes WorkPlan steps and plan acceptance. Invalid or
+clarification results keep those sections empty. Every renderer and export
+validates the WorkPlan and returns a safe replan prompt instead of partial data.
 
 Local providers run without a cloud-consent prompt. Cloud providers require
 authorization before either model request. Interactive mode previews bounded

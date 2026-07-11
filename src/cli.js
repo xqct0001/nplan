@@ -25,7 +25,7 @@ import { OpenAICompatiblePlanningModel, isLocalModelProvider } from './model-cli
 import { loadModelConfig, parseConfigOverrides, resolveModelProvider } from './model-config.js';
 import { formatModelError } from './model-errors.js';
 import { initHint, renderProviderList, writeProjectModelConfig } from './model-init.js';
-import { fetchProviderModels, modelListUrl, runModelSetupWizard } from './model-wizard.js';
+import { modelListUrl, probeProviderHealth, runModelSetupWizard } from './model-wizard.js';
 import {
   createSession,
   loadLatestSession,
@@ -36,10 +36,12 @@ import {
 import {
   defaultWorkPlanExportPath,
   deriveWorkPlan,
+  invalidWorkPlanMessage,
   renderWorkPlanMarkdown,
   renderWorkPlanSources,
   renderWorkPlanTodo
 } from './work-plan.js';
+import { validateWorkPlan } from './validation.js';
 
 const APP_NAME = 'NPlan';
 const BIN_NAME = 'nplan';
@@ -272,10 +274,10 @@ export async function main(argv = process.argv.slice(2), streams = { input, outp
       const result = await runtime.agent.analyzePreparedAsync(authorization.prepared, {
         cloudContextAuthorized: authorization.allowed
       });
-      const workPlan = deriveWorkPlan(result, {
+      const workPlan = requireValidWorkPlan(deriveWorkPlan(result, {
         sessionId: session?.id || 'print-session',
         locale: parsed.locale
-      });
+      }));
       if (session) {
         recordSessionTurn(session, {
           request: prompt,
@@ -554,11 +556,17 @@ async function handleInteractiveLine(line, { state, streams }) {
     return false;
   }
   if (line === '/sources') {
-    streams.output.write(`${renderWorkPlanSources(state.lastWorkPlan)}\n`);
+    const rendered = state.lastWorkPlan
+      ? renderWorkPlanSources(state.lastWorkPlan)
+      : invalidWorkPlanMessage(state.locale);
+    streams.output.write(`${rendered}\n`);
     return false;
   }
   if (line === '/todo') {
-    streams.output.write(`${renderWorkPlanTodo(state.lastWorkPlan)}\n`);
+    const rendered = state.lastWorkPlan
+      ? renderWorkPlanTodo(state.lastWorkPlan)
+      : invalidWorkPlanMessage(state.locale);
+    streams.output.write(`${rendered}\n`);
     return false;
   }
   if (slash.command === '/revise') {
@@ -690,10 +698,15 @@ async function analyzeAndRender(prompt, { state, streams, reviseExisting = false
       streams.output.write(`${state.locale === 'en' ? 'Cloud-context authorization cancelled.' : '已取消云端上下文授权。'}\n`);
       return;
     }
-    state.lastResult = await state.runtime.agent.analyzePreparedAsync(authorization.prepared, {
+    const result = await state.runtime.agent.analyzePreparedAsync(authorization.prepared, {
       cloudContextAuthorized: authorization.allowed
     });
-    state.lastWorkPlan = deriveWorkPlan(state.lastResult, { sessionId: state.session.id, locale: state.locale });
+    const workPlan = requireValidWorkPlan(deriveWorkPlan(result, {
+      sessionId: state.session.id,
+      locale: state.locale
+    }));
+    state.lastResult = result;
+    state.lastWorkPlan = workPlan;
     state.requests += 1;
     recordSessionTurn(state.session, {
       request: prompt,
@@ -729,6 +742,7 @@ function renderPrintResult(result, outputFormat = 'json', locale = 'zh-CN') {
 export function renderInteractiveResult(result, options = {}) {
   const locale = resolveLocale(options.locale);
   const workPlan = options.workPlan || deriveWorkPlan(result, { locale });
+  if (!validateWorkPlan(workPlan).valid) return invalidWorkPlanMessage(locale);
   const lines = [];
 
   if (result?.status === 'needs_clarification') {
@@ -892,6 +906,13 @@ function setupRequiredMessage(error, locale = 'en') {
   if (locale !== 'en') return `请先运行 ${SETUP_COMMAND} 配置模型。`;
   const detail = error ? ` (${error})` : '';
   return `Model setup required${detail}. Run ${SETUP_COMMAND}.`;
+}
+
+function requireValidWorkPlan(workPlan) {
+  if (validateWorkPlan(workPlan).valid) return workPlan;
+  const error = new Error('WorkPlan validation failed; replan before viewing or exporting it.');
+  error.code = 'invalid_output';
+  throw error;
 }
 
 function isModelConfigError(error) {
@@ -1126,7 +1147,7 @@ async function runDoctor(parsed) {
   }
 
   try {
-    await fetchProviderModels({ provider, apiKey: provider.apiKey });
+    await probeProviderHealth({ provider, apiKey: provider.apiKey });
     lines.push(english
       ? 'online: connection healthy (read-only models/health endpoint only)'
       : '联网：连接正常（仅测试只读模型列表或健康接口）');
@@ -1432,15 +1453,25 @@ function cloudConsentRequiredMessage(locale) {
 }
 
 function resumedSessionMessage(session, locale) {
-  return locale === 'en'
+  const base = locale === 'en'
     ? `restored plan from session ${session.id} (${session.turns.length} turns)`
     : `已恢复规划：${session.id}（${session.turns.length} 轮）`;
+  return appendWorkPlanRestoreWarning(base, session, locale);
 }
 
 function continuedSessionMessage(session, locale) {
-  return locale === 'en'
+  const base = locale === 'en'
     ? `continuing restored plan ${session.id} (${session.turns.length} turns)`
     : `已继续规划：${session.id}（${session.turns.length} 轮）`;
+  return appendWorkPlanRestoreWarning(base, session, locale);
+}
+
+function appendWorkPlanRestoreWarning(base, session, locale) {
+  if (!session?.last_result || session?.last_work_plan) return base;
+  const warning = locale === 'en'
+    ? 'The saved WorkPlan was invalid and was not restored. Replan before viewing, revising, or exporting it.'
+    : '已保存的工作计划校验失败，未恢复；请重新规划后再查看、修改或导出。';
+  return `${base}\n${warning}`;
 }
 
 function incompatibleSessionMessage(session, locale) {

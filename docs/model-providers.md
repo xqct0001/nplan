@@ -111,6 +111,13 @@ embedding route segments. Anything else is rejected before fetch. It never calls
 classified as invalid address, missing credentials, timeout, rate limit, not
 found, provider error, or connection failure, with a safe next action.
 
+The doctor probe uses manual redirect handling: every 3xx is rejected and its
+`Location` is never requested, so authorization cannot be forwarded to a
+redirect target. For any allowlisted endpoint, a 2xx status is sufficient;
+plain-text and empty health responses are valid, and response bodies are
+discarded rather than parsed. Setup model discovery remains separate and still
+parses its successful model-list JSON.
+
 The path check applies up to three bounded percent-decoding rounds. Encoded
 slashes or backslashes, malformed escapes, invalid UTF-8, and over-encoded
 remaining escapes are rejected before any request. Valid encoded non-separator
