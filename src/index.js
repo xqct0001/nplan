@@ -18,7 +18,7 @@ export {
   callModelForTaskSpec
 } from './model-client.js';
 export { loadModelConfig, parseConfigOverrides, resolveModelProvider } from './model-config.js';
-export { classifyModelError, formatModelError } from './model-errors.js';
+export { classifyModelError, displaySafeUrl, formatModelError } from './model-errors.js';
 export {
   DEFAULT_PLANNER_POLICY,
   TASKPLAN_REQUIRED_FIELDS,

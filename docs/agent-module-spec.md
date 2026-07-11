@@ -14,9 +14,16 @@ The module accepts a user request plus optional local context and returns:
 - deterministic validation reports for both artifacts.
 
 It does not execute tasks, run shell commands, edit code, use arbitrary network
-tools, create a UI, or manage remote agents. Network use is limited to configured
-model provider calls for semantic task understanding and user-confirmed setup
-model-list requests to provider endpoints.
+tools, create a UI, or manage remote agents. Network use is limited to:
+
+- configured provider calls for TaskSpec understanding and TaskPlan generation;
+- user-confirmed setup requests to a provider model-list endpoint; and
+- one explicit `doctor --online` GET probe to an allowlisted read-only
+  `models`, `health`, `healthz`, `status`, `ready`, or `readiness` endpoint
+  whose path contains no task, chat, completion, response, message, or
+  embedding route segment.
+
+The doctor probe sends no task request or local context.
 
 ## JavaScript File Boundary
 
@@ -108,7 +115,7 @@ The CLI mirrors a safe subset of Claude Code's command-line interaction shape:
 - `resume [id]`: Codex-style session resume command
 - `--version` / `-V`: print the installed CLI version
 - `doctor`: print offline local config/key/consent diagnostics without executing tasks
-- `doctor --online`: test only the configured provider models/health endpoint
+- `doctor --online`: send one GET probe only to an allowlisted read-only provider health endpoint
 - `consent [status|revoke]`: inspect or revoke project cloud-context consent
 - `setup`: guided provider/API key/model configuration
 - first interactive TTY launch with no configured model starts the same guided

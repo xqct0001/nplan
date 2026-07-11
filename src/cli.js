@@ -25,7 +25,7 @@ import { OpenAICompatiblePlanningModel, isLocalModelProvider } from './model-cli
 import { loadModelConfig, parseConfigOverrides, resolveModelProvider } from './model-config.js';
 import { formatModelError } from './model-errors.js';
 import { initHint, renderProviderList, writeProjectModelConfig } from './model-init.js';
-import { fetchProviderModels, runModelSetupWizard } from './model-wizard.js';
+import { fetchProviderModels, modelListUrl, runModelSetupWizard } from './model-wizard.js';
 import {
   createSession,
   loadLatestSession,
@@ -58,7 +58,7 @@ Commands:
                     Show or revoke project cloud-context consent
   providers         List built-in model providers
   resume [id]       Resume a saved planning session
-  doctor [--online] Check local configuration; optionally test the models endpoint
+  doctor [--online] Check local configuration; optionally test a models/health endpoint
 
 Options:
   -p, --print       Print one JSON result and exit
@@ -116,7 +116,7 @@ const HELP_ZH = `用法：${BIN_NAME} [选项] [任务]
   consent [status|revoke] 查看或撤销项目云端上下文授权
   providers              查看内置模型服务商
   resume [会话编号]      恢复已保存的规划会话
-  doctor [--online]      检查本地配置；可选测试模型列表接口
+  doctor [--online]      检查本地配置；可选测试模型列表或健康接口
 
 选项：
   -p, --print            输出一次结果后退出（默认 JSON）
@@ -1081,6 +1081,15 @@ async function runDoctor(parsed) {
   }
   lines.push(english ? 'provider address: valid' : 'Provider 地址：有效');
 
+  if (parsed.online) {
+    const healthTargetError = providerHealthTargetError(provider);
+    if (healthTargetError) {
+      lines.push(english ? 'online health target: rejected' : '联网健康检查地址：已拒绝');
+      lines.push(formatModelError(healthTargetError, locale));
+      return { code: 1, text: lines.join('\n') };
+    }
+  }
+
   const keyMissing = Boolean(provider.env_key && !provider.apiKey);
   if (provider.env_key) {
     lines.push(english
@@ -1119,8 +1128,8 @@ async function runDoctor(parsed) {
   try {
     await fetchProviderModels({ provider, apiKey: provider.apiKey });
     lines.push(english
-      ? 'online: connection healthy (models endpoint only)'
-      : '联网：连接正常（仅测试模型列表接口）');
+      ? 'online: connection healthy (read-only models/health endpoint only)'
+      : '联网：连接正常（仅测试只读模型列表或健康接口）');
     return { code: 0, text: lines.join('\n') };
   } catch (error) {
     lines.push(english ? 'online: connection failed' : '联网：连接失败');
@@ -1131,8 +1140,8 @@ async function runDoctor(parsed) {
 
 function offlineDoctorLine(locale) {
   return locale === 'en'
-    ? 'online: not tested; use nplan doctor --online to test the models endpoint'
-    : '联网：未测试联网；如需检查，请运行 nplan doctor --online（仅访问模型列表接口）';
+    ? 'online: not tested; use nplan doctor --online to test a read-only models/health endpoint'
+    : '联网：未测试联网；如需检查，请运行 nplan doctor --online（仅访问只读模型列表或健康接口）';
 }
 
 function providerAddressError(provider) {
@@ -1146,6 +1155,33 @@ function providerAddressError(provider) {
     return null;
   } catch {
     return Object.assign(new TypeError('Invalid URL'), { code: 'ERR_INVALID_URL' });
+  }
+}
+
+function providerHealthTargetError(provider) {
+  try {
+    const target = new URL(provider.models_url || modelListUrl(provider.base_url));
+    const segments = target.pathname
+      .split('/')
+      .filter(Boolean)
+      .map((segment) => decodeURIComponent(segment).toLowerCase());
+    const finalSegment = segments.at(-1) || '';
+    const allowed = new Set(['models', 'health', 'healthz', 'status', 'ready', 'readiness']);
+    const forbidden = new Set([
+      'chat',
+      'completions',
+      'responses',
+      'messages',
+      'embeddings',
+      'task',
+      'tasks'
+    ]);
+    if (!allowed.has(finalSegment) || segments.some((segment) => forbidden.has(segment))) {
+      throw new Error('unsafe health target');
+    }
+    return null;
+  } catch {
+    return Object.assign(new Error('unsafe health target'), { code: 'unsafe_health_endpoint' });
   }
 }
 

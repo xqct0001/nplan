@@ -1,7 +1,7 @@
 import readline from 'node:readline';
 
 import { BUILTIN_MODEL_PROVIDERS } from './model-config.js';
-import { formatModelError } from './model-errors.js';
+import { displaySafeUrl, formatModelError } from './model-errors.js';
 import { listProviderChoices, writeProjectModelConfig } from './model-init.js';
 
 const DEFAULT_WIRE_API = 'chat_completions';
@@ -49,7 +49,7 @@ export async function runModelSetupWizard({
     } else if (provider.env_key && !apiKey) {
       output.write(`Before using NPlan in CMD, run: set ${provider.env_key}=<your-key>\n`);
     } else if (!provider.env_key) {
-      output.write(`Make sure the local service is running at ${provider.base_url}.\n`);
+      output.write(`Make sure the local service is running at ${displaySafeUrl(provider.base_url)}.\n`);
     }
     output.write('Try it:\nnplan -p "Plan a local knowledge base organizer"\n');
     return result;
@@ -130,7 +130,12 @@ async function chooseProvider(ui, output, locale) {
   const name = await ui.ask('Provider display name', id);
   const envKey = await ui.ask('API key environment variable name', `${id.toUpperCase()}_API_KEY`);
   const wireApi = await ui.ask('Wire API (chat_completions or responses)', DEFAULT_WIRE_API);
-  const modelsUrl = await ui.ask('Model list URL', modelListUrl(baseUrl));
+  const defaultModelsUrl = modelListUrl(baseUrl);
+  const modelsUrl = await ui.ask(
+    'Model list URL',
+    defaultModelsUrl,
+    displaySafeUrl(defaultModelsUrl)
+  );
   const apiKeyUrl = await ui.ask('API key page URL (optional)', '');
 
   return {
@@ -168,7 +173,7 @@ function resolveProviderChoice(answer, providers) {
 
 async function askApiKey(ui, output, provider) {
   if (!provider.env_key) return '';
-  if (provider.api_key_url) output.write(`API key page: ${provider.api_key_url}\n`);
+  if (provider.api_key_url) output.write(`API key page: ${displaySafeUrl(provider.api_key_url)}\n`);
   const existing = process.env[provider.env_key];
   const hint = existing ? `Press Enter to use current $env:${provider.env_key}` : 'Press Enter to skip';
   const entered = await askSecret(
@@ -190,7 +195,12 @@ export function askSecret({ input, output, rl }, prompt) {
 
 async function maybeFetchModels({ ui, output, provider, apiKey, fetchImpl, locale }) {
   const modelsUrl = provider.models_url || modelListUrl(provider.base_url);
-  const shouldFetch = await confirm(ui, `Fetch model list from ${modelsUrl}`, true, locale);
+  const shouldFetch = await confirm(
+    ui,
+    `Fetch model list from ${displaySafeUrl(modelsUrl)}`,
+    true,
+    locale
+  );
   if (!shouldFetch) return [];
 
   try {
@@ -276,8 +286,8 @@ function createQuestioner({ input, output }) {
   return {
     input,
     output,
-    ask(prompt, defaultValue = '') {
-      const label = defaultValue ? `${prompt} [${defaultValue}]: ` : `${prompt}: `;
+    ask(prompt, defaultValue = '', displayDefault = defaultValue) {
+      const label = defaultValue ? `${prompt} [${displayDefault}]: ` : `${prompt}: `;
       output.write(label);
       if (lines.length) {
         const answer = lines.shift().trim();
@@ -397,8 +407,8 @@ function createTtyQuestioner({ input, output }) {
   return {
     input,
     output,
-    ask(prompt, defaultValue = '') {
-      const label = defaultValue ? `${prompt} [${defaultValue}]: ` : `${prompt}: `;
+    ask(prompt, defaultValue = '', displayDefault = defaultValue) {
+      const label = defaultValue ? `${prompt} [${displayDefault}]: ` : `${prompt}: `;
       output.write(label);
       if (lines.length) return Promise.resolve(lines.shift() || defaultValue);
       if (closed) return Promise.resolve(defaultValue);

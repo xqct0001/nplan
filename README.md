@@ -55,7 +55,8 @@ write `.nplan/config.toml`. That directory is ignored by git.
 
 Run `nplan doctor` for offline configuration, API-key, and consent checks. Use
 `nplan doctor --online` only when you want to test the provider's models
-endpoint; it does not send a planning request.
+or read-only health endpoint. Unsafe task endpoints are rejected before fetch;
+the probe sends no task or local context.
 
 If no model is configured yet, running `nplan` in an interactive terminal starts
 the same first-run setup wizard before opening the planning session. Print mode
@@ -88,7 +89,7 @@ Commands:
                     Show or revoke project cloud-context consent
   providers         List built-in model providers
   resume [id]       Resume a saved planning session
-  doctor [--online] Check local configuration; optionally test the models endpoint
+  doctor [--online] Check local configuration; optionally test a models/health endpoint
 
 Options:
   -p, --print       Print one JSON result and exit

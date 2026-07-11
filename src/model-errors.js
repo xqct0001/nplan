@@ -41,6 +41,12 @@ const ERROR_MESSAGES = {
     message_en: 'The provider address is invalid.',
     next_action_en: 'Check base_url and models_url; they must be complete HTTP or HTTPS URLs.'
   },
+  unsafe_health_endpoint: {
+    message_zh: '健康检查地址不安全。',
+    next_action_zh: '将 models_url 改为只读的 models、health、healthz、status、ready 或 readiness 接口。',
+    message_en: 'The configured health-check endpoint is unsafe.',
+    next_action_en: 'Set models_url to a read-only models, health, healthz, status, ready, or readiness endpoint.'
+  },
   network: {
     message_zh: '无法连接模型服务。',
     next_action_zh: '检查网络、本地服务地址或代理设置。',
@@ -62,6 +68,7 @@ export function classifyModelError(error) {
   if (status === 429) return result('rate_limit');
   if (status === 404) return result('not_found');
   if (status >= 500) return result('provider_error');
+  if (code === 'unsafe_health_endpoint') return result('unsafe_health_endpoint');
   if (code === 'ERR_INVALID_URL' || /invalid url|failed to parse url/i.test(message)) {
     return result('invalid_url');
   }
@@ -77,6 +84,16 @@ export function formatModelError(error, locale = 'zh-CN') {
     return `${classified.message_en}\nNext step: ${classified.next_action_en}`;
   }
   return `${classified.message_zh}\n下一步：${classified.next_action_zh}`;
+}
+
+export function displaySafeUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    if (!['http:', 'https:'].includes(url.protocol)) return '[invalid URL]';
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return '[invalid URL]';
+  }
 }
 
 function result(code) {

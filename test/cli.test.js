@@ -14,7 +14,7 @@ import { authorizePreparedContext, main, parseArgs, renderInteractiveResult } fr
 import { buildConsentScope, hasValidConsent, loadConsent, saveConsent } from '../src/consent.js';
 import { OpenAICompatiblePlanningModel } from '../src/model-client.js';
 import { loadModelConfig } from '../src/model-config.js';
-import { runModelSetupWizard } from '../src/model-wizard.js';
+import { fetchProviderModels, runModelSetupWizard } from '../src/model-wizard.js';
 import { deriveWorkPlan } from '../src/work-plan.js';
 import { clarificationResult, plannedChineseResult } from './fixtures.js';
 
@@ -1197,6 +1197,92 @@ test('setup uses English group labels with --lang en', async () => {
   }
 });
 
+test('custom setup never displays URL credentials, queries, or fragments', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-setup-url-redaction-'));
+  const baseUrl = 'https://base-user-marker:base-pass-marker@example.test/v1?api_key=base-query-marker#base-fragment-marker';
+  const modelsUrl = 'https://models-user-marker:models-pass-marker@example.test/v1/models?api_key=models-query-marker#models-fragment-marker';
+  const keyUrl = 'https://key-user-marker:key-pass-marker@example.test/keys?token=key-query-marker#key-fragment-marker';
+  try {
+    const result = await runCli(
+      ['setup'],
+      [
+        'custom',
+        baseUrl,
+        'safe-custom',
+        'Safe Custom',
+        'SAFE_CUSTOM_KEY',
+        'chat_completions',
+        modelsUrl,
+        keyUrl,
+        '',
+        '否',
+        'safe-model'
+      ].join('\n') + '\n',
+      { HOME: dir, USERPROFILE: dir, NPLAN_HOME: '', NPLAN_MODEL: '' },
+      dir
+    );
+    const config = await readFile(join(dir, '.nplan', 'config.toml'), 'utf8');
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, '');
+    assert.doesNotMatch(
+      `${result.stdout}\n${result.stderr}`,
+      /base-user-marker|base-pass-marker|base-query-marker|base-fragment-marker|models-user-marker|models-pass-marker|models-query-marker|models-fragment-marker|key-user-marker|key-pass-marker|key-query-marker|key-fragment-marker/
+    );
+    assert.match(result.stdout, /https:\/\/example\.test\/v1\/models/);
+    assert.match(result.stdout, /https:\/\/example\.test\/keys/);
+    assert.match(config, /models-query-marker/);
+    assert.match(config, /base-query-marker/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('custom setup never displays a malformed URL value', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nplan-setup-invalid-url-redaction-'));
+  try {
+    const result = await runCli(
+      ['setup'],
+      [
+        'custom',
+        'https://example.test/v1',
+        'invalid-custom',
+        'Invalid Custom',
+        'INVALID_CUSTOM_KEY',
+        'chat_completions',
+        'malformed-models-url-secret-marker',
+        '',
+        '',
+        '否',
+        'safe-model'
+      ].join('\n') + '\n',
+      { HOME: dir, USERPROFILE: dir, NPLAN_HOME: '', NPLAN_MODEL: '' },
+      dir
+    );
+
+    assert.equal(result.code, 0);
+    assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /malformed-models-url-secret-marker/);
+    assert.match(result.stdout, /\[invalid URL\]/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('safe URL display does not alter the model-list request target', async () => {
+  const modelsUrl = 'https://example.test/v1/models?api_key=request-query-marker#request-fragment-marker';
+  let requestedUrl = null;
+
+  await fetchProviderModels({
+    provider: { models_url: modelsUrl, timeout_ms: 1000 },
+    fetchImpl: async (url) => {
+      requestedUrl = url;
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    }
+  });
+
+  assert.equal(requestedUrl, modelsUrl);
+});
+
 test('TTY setup masks the API key and restores raw mode', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'nplan-setup-tty-secret-'));
   const oldCwd = process.cwd();
@@ -1386,6 +1472,28 @@ test('doctor reports an invalid provider address without exposing its query secr
   }
 });
 
+for (const unsafePath of [
+  '/v1/chat/completions',
+  '/v1/chat/completions/models',
+  '/v1/responses',
+  '/v1/responses?api_key=doctor-query-secret#doctor-fragment-secret'
+]) {
+  test(`online doctor rejects unsafe health target ${unsafePath} before fetch`, async () => {
+    await withHealthServer(async ({ configPath, requests, cwd, env }) => {
+      const result = await runCli(['doctor', '--online', '--config-path', configPath], '', env, cwd);
+
+      assert.equal(result.code, 1);
+      assert.equal(requests.length, 0);
+      assert.match(result.stdout, /健康检查地址不安全/);
+      assert.match(result.stdout, /下一步/);
+      assert.doesNotMatch(
+        result.stdout,
+        /chat\/completions|responses|doctor-query-secret|doctor-fragment-secret/
+      );
+    }, { modelsPath: unsafePath });
+  });
+}
+
 test('print mode formats provider failures without exposing response secrets', async () => {
   await withFailingModelServer(async ({ configPath, cwd, env }) => {
     const result = await runCli(
@@ -1522,7 +1630,7 @@ async function runCli(args, stdin = '', env = {}, cwd = process.cwd()) {
   return { code, stdout, stderr };
 }
 
-async function withHealthServer(fn) {
+async function withHealthServer(fn, { modelsPath = '/v1/models' } = {}) {
   const requests = [];
   const responseControl = {
     status: 200,
@@ -1552,7 +1660,7 @@ async function withHealthServer(fn) {
     'model_provider = "cloudtest"',
     '[model_providers.cloudtest]',
     `base_url = "http://127.0.0.1:${port}/v1"`,
-    `models_url = "http://127.0.0.1:${port}/v1/models"`,
+    `models_url = "http://127.0.0.1:${port}${modelsPath}"`,
     'context_location = "cloud"',
     'env_key = "FAKE_MODEL_KEY"',
     'wire_api = "chat_completions"',

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { classifyModelError, formatModelError } from '../src/model-errors.js';
+import { classifyModelError, displaySafeUrl, formatModelError } from '../src/model-errors.js';
 
 for (const [name, error, code] of [
   ['timeout', new DOMException('timed out', 'TimeoutError'), 'timeout'],
@@ -55,5 +55,22 @@ test('publishes model error helpers from the package entry point', async () => {
   const api = await import('../src/index.js');
 
   assert.equal(api.classifyModelError, classifyModelError);
+  assert.equal(api.displaySafeUrl, displaySafeUrl);
   assert.equal(api.formatModelError, formatModelError);
+});
+
+test('displaySafeUrl strips credentials, query strings, and fragments', () => {
+  const displayed = displaySafeUrl(
+    'https://user-marker:pass-marker@example.test/v1/models?api_key=query-marker#fragment-marker'
+  );
+
+  assert.equal(displayed, 'https://example.test/v1/models');
+  assert.doesNotMatch(displayed, /user-marker|pass-marker|query-marker|fragment-marker/);
+});
+
+test('displaySafeUrl returns a fixed label for malformed URLs', () => {
+  const displayed = displaySafeUrl('malformed-url-secret-marker');
+
+  assert.equal(displayed, '[invalid URL]');
+  assert.doesNotMatch(displayed, /secret-marker/);
 });

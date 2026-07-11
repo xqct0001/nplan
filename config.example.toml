@@ -9,7 +9,9 @@
 # `nplan setup` shows canonical providers in recommended cloud, local, and more
 # groups; compatibility aliases remain valid in existing config files.
 # `nplan doctor` is offline by default. `nplan doctor --online` only calls the
-# selected provider's `models_url` (or `<base_url>/models`) health endpoint.
+# selected provider's `models_url` (or `<base_url>/models`) when its final path
+# is models, health, healthz, status, ready, or readiness and the path contains
+# no task, chat, completion, response, message, or embedding route segment.
 
 model = "gpt-5.5"
 model_provider = "openai"

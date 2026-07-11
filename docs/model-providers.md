@@ -103,10 +103,17 @@ address shape, and project cloud-context consent state. It explicitly reports
 that networking was not tested.
 
 `nplan doctor --online` additionally sends one request to `models_url`, or to
-`<base_url>/models` when no explicit URL is configured. It never calls
-`/chat/completions`, `/responses`, or either planning operation. Failures are
+`<base_url>/models` when no explicit URL is configured. The final path segment
+must be `models`, `health`, `healthz`, `status`, `ready`, or `readiness`;
+the full path must not contain task, chat, completion, response, message, or
+embedding route segments. Anything else is rejected before fetch. It never calls `/chat/completions`,
+`/responses`, or either planning operation, and sends no task or local context. Failures are
 classified as invalid address, missing credentials, timeout, rate limit, not
 found, provider error, or connection failure, with a safe next action.
+
+Wizard URL labels show only origin and path. User info, query strings, and
+fragments are never printed, while the original value remains unchanged for
+configuration storage and provider requests.
 
 When an API key is entered, the wizard can save it in `.nplan/config.toml`.
 That directory is ignored by this repository's `.gitignore`, but environment
