@@ -623,7 +623,7 @@ git status --short --branch
 git diff --name-status origin/main...HEAD
 ```
 
-Expected: the branch is ahead of `origin/main`; outgoing files are limited to the approved design/plan documents, both READMEs, `assets/nplan-icon.svg`, `.gitignore`, `package.json`, and deletions under `test/`. The working tree has no tracked modifications.
+Expected: the branch is ahead of `origin/main`; outgoing files are limited to the approved design/plan documents, both READMEs, `assets/nplan-icon.svg`, `.gitignore`, `package.json`, `docs/agent-module-spec.md`, `docs/local-knowledge.md`, and deletions under `test/`. The working tree has no tracked modifications.
 
 - [ ] **Step 4: Push `main` without rewriting history**
 
