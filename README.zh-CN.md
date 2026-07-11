@@ -25,7 +25,7 @@ nplan setup
 nplan "为这个项目规划一份发布检查清单"
 ```
 
-如果使用 PowerShell，请运行 `.\install.cmd`。配置向导会把当前项目的设置写入 `.nplan/config.toml`，该目录不会被 Git 跟踪。
+如果使用 PowerShell，请运行 `.\install.cmd`。配置向导会把当前项目的设置写入 `.nplan/config.toml`，其所在的 `.nplan/` 目录不会被 Git 跟踪。
 
 ## 工作方式
 
@@ -37,7 +37,7 @@ nplan "为这个项目规划一份发布检查清单"
   → 已校验 WorkPlan
 ```
 
-如果缺少必要信息，NPlan 会先请求澄清，不会自行补全计划。任务就绪后，需求理解和任务规划分别调用模型，最后在本地完成校验。
+如果缺少必要信息，NPlan 会先请求澄清，不会凭空编造计划。需求信息齐全后，需求理解和任务规划分别调用模型，最后在本地完成校验。
 
 ## 核心能力
 
@@ -55,7 +55,7 @@ nplan "为这个项目规划一份发布检查清单"
 | `nplan setup` | 配置服务商、API Key 和模型。 |
 | `nplan providers` | 查看内置模型服务商。 |
 | `nplan doctor` | 在不联网的情况下检查本地配置。 |
-| `nplan doctor --online` | 探测允许的只读模型列表或健康接口。 |
+| `nplan doctor --online` | 探测白名单内的只读模型列表或健康检查接口。 |
 | `nplan "<需求>"` | 使用初始需求开始交互式规划。 |
 | `nplan -p --output-format summary "<需求>"` | 输出一次精简规划结果。 |
 | `nplan -c` | 继续最近的本地会话。 |

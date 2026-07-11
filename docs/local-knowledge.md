@@ -135,7 +135,13 @@ evidence is rehydrated.
 3. Link it from `docs/nplan_knowledge/index.md`.
 4. Add citations to local files or external references when the body makes a
    sourced claim.
-5. Run tests:
+5. Run the public syntax check:
+
+```powershell
+node --check src/okf.js
+```
+
+6. Maintainers with the private local `test/` directory can additionally run:
 
 ```powershell
 node --test

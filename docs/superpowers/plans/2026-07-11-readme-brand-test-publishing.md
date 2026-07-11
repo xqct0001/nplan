@@ -24,6 +24,8 @@
 - Create `assets/nplan-icon.svg`: the single project icon referenced by both READMEs.
 - Replace `README.md`: concise English product entry, setup path, operational commands, safety boundary, and documentation links.
 - Replace `README.zh-CN.md`: Chinese mirror with the same facts, commands, and section order.
+- Modify `docs/agent-module-spec.md`: publish syntax checks and qualify the full suite as maintainer-local.
+- Modify `docs/local-knowledge.md`: publish the focused syntax check and qualify the full suite as maintainer-local.
 - Modify `.gitignore`: add the anchored `/test/` publication rule.
 - Modify `package.json`: remove only `scripts.test`; retain all other metadata and scripts.
 - Untrack `test/`: remove the directory from the current Git index without removing local files.
@@ -306,7 +308,7 @@ nplan setup
 nplan "为这个项目规划一份发布检查清单"
 ```
 
-如果使用 PowerShell，请运行 `.\install.cmd`。配置向导会把当前项目的设置写入 `.nplan/config.toml`，该目录不会被 Git 跟踪。
+如果使用 PowerShell，请运行 `.\install.cmd`。配置向导会把当前项目的设置写入 `.nplan/config.toml`，其所在的 `.nplan/` 目录不会被 Git 跟踪。
 
 ## 工作方式
 
@@ -318,7 +320,7 @@ nplan "为这个项目规划一份发布检查清单"
   → 已校验 WorkPlan
 ```
 
-如果缺少必要信息，NPlan 会先请求澄清，不会自行补全计划。任务就绪后，需求理解和任务规划分别调用模型，最后在本地完成校验。
+如果缺少必要信息，NPlan 会先请求澄清，不会凭空编造计划。需求信息齐全后，需求理解和任务规划分别调用模型，最后在本地完成校验。
 
 ## 核心能力
 
@@ -336,7 +338,7 @@ nplan "为这个项目规划一份发布检查清单"
 | `nplan setup` | 配置服务商、API Key 和模型。 |
 | `nplan providers` | 查看内置模型服务商。 |
 | `nplan doctor` | 在不联网的情况下检查本地配置。 |
-| `nplan doctor --online` | 探测允许的只读模型列表或健康接口。 |
+| `nplan doctor --online` | 探测白名单内的只读模型列表或健康检查接口。 |
 | `nplan "<需求>"` | 使用初始需求开始交互式规划。 |
 | `nplan -p --output-format summary "<需求>"` | 输出一次精简规划结果。 |
 | `nplan -c` | 继续最近的本地会话。 |
@@ -431,11 +433,13 @@ Expected: only `README.zh-CN.md` committed in this task.
 **Files:**
 - Modify: `.gitignore`
 - Modify: `package.json`
+- Modify: `docs/agent-module-spec.md`
+- Modify: `docs/local-knowledge.md`
 - Untrack: `test/`
 
 **Interfaces:**
 - Consumes: the existing local `test/` directory and the `node --test` automatic test discovery runner.
-- Produces: a public Git tree without test sources or a public test script, while retaining the full local test suite.
+- Produces: a public Git tree without test sources or a public test script, public syntax-check guidance, and maintainer-local full-suite guidance while retaining the full local test suite.
 
 - [ ] **Step 1: Record the current failure state**
 
@@ -474,7 +478,48 @@ The resulting scripts object must be:
 }
 ```
 
-- [ ] **Step 4: Remove tests from the Git index without deleting local files**
+- [ ] **Step 4: Qualify full-suite verification in the focused documents**
+
+Replace the `docs/agent-module-spec.md` Verification section with:
+
+````markdown
+## Verification
+
+Use Node.js only. Public clones can run syntax checks:
+
+```powershell
+node --check src/cli.js
+node --check src/model-config.js
+node --check src/model-init.js
+node --check src/model-wizard.js
+node --check src/context-curator.js
+node --check src/provenance.js
+```
+
+Maintainers with the private local `test/` directory can additionally run:
+
+```powershell
+node --test
+```
+````
+
+Replace step 5 under `docs/local-knowledge.md` / `Adding A New Concept` and insert step 6 with:
+
+````markdown
+5. Run the public syntax check:
+
+```powershell
+node --check src/okf.js
+```
+
+6. Maintainers with the private local `test/` directory can additionally run:
+
+```powershell
+node --test
+```
+````
+
+- [ ] **Step 5: Remove tests from the Git index without deleting local files**
 
 Run:
 
@@ -484,7 +529,7 @@ git rm --cached -r test
 
 Expected: Git stages deletion of every tracked `test/` file; the files remain on disk.
 
-- [ ] **Step 5: Run the retained local suite**
+- [ ] **Step 6: Run the retained local suite**
 
 Run:
 
@@ -494,7 +539,7 @@ node --test
 
 Expected: 193 tests total, 190 pass, 0 fail, and 3 Windows symlink-permission skips.
 
-- [ ] **Step 6: Verify the publication boundary**
+- [ ] **Step 7: Verify the publication boundary**
 
 Run:
 
@@ -511,14 +556,14 @@ Write-Output "TEST_PUBLICATION_OK LOCAL=$localCount"
 
 Expected: `git check-ignore` prints `test`, followed by `TEST_PUBLICATION_OK` with a positive local count.
 
-- [ ] **Step 7: Commit the test publication change**
+- [ ] **Step 8: Commit the test publication change**
 
 ```powershell
-git add .gitignore package.json
+git add .gitignore package.json docs/agent-module-spec.md docs/local-knowledge.md
 git commit -m "chore: keep tests out of published tree"
 ```
 
-Expected: `.gitignore` and `package.json` are modified, and all tracked `test/` files are recorded as deletions while remaining locally available.
+Expected: `.gitignore`, `package.json`, `docs/agent-module-spec.md`, and `docs/local-knowledge.md` are modified, and all tracked `test/` files are recorded as deletions while remaining locally available.
 
 ### Task 5: Run release checks and update GitHub
 
@@ -528,6 +573,8 @@ Expected: `.gitignore` and `package.json` are modified, and all tracked `test/` 
 - Verify: `assets/nplan-icon.svg`
 - Verify: `.gitignore`
 - Verify: `package.json`
+- Verify: `docs/agent-module-spec.md`
+- Verify: `docs/local-knowledge.md`
 - Verify: local untracked `test/`
 
 **Interfaces:**
@@ -547,6 +594,8 @@ if (@(git ls-files test).Count -ne 0) { throw 'Tracked tests remain' }
 if ((Get-ChildItem test -Recurse -File).Count -eq 0) { throw 'Local tests missing' }
 if (-not (Select-String README.md -SimpleMatch 'assets/nplan-icon.svg' -Quiet)) { throw 'English icon reference missing' }
 if (-not (Select-String README.zh-CN.md -SimpleMatch 'assets/nplan-icon.svg' -Quiet)) { throw 'Chinese icon reference missing' }
+if (-not (Select-String docs/agent-module-spec.md -SimpleMatch 'Maintainers with the private local `test/` directory can additionally run:' -Quiet)) { throw 'Module spec does not qualify the full suite as maintainer-local' }
+if (-not (Select-String docs/local-knowledge.md -SimpleMatch 'Maintainers with the private local `test/` directory can additionally run:' -Quiet)) { throw 'Local knowledge doc does not qualify the full suite as maintainer-local' }
 git diff --check
 Write-Output 'RELEASE_CHECKS_OK'
 ```

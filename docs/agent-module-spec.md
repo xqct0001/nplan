@@ -113,16 +113,21 @@ rendering, persistence, restoration, and export boundaries re-run validation.
 
 ## Verification
 
-Use Node.js only:
+Use Node.js only. Public clones can run syntax checks:
 
 ```powershell
-node --test
 node --check src/cli.js
 node --check src/model-config.js
 node --check src/model-init.js
 node --check src/model-wizard.js
 node --check src/context-curator.js
 node --check src/provenance.js
+```
+
+Maintainers with the private local `test/` directory can additionally run:
+
+```powershell
+node --test
 ```
 
 ## CLI Interaction
