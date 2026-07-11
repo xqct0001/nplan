@@ -10,7 +10,6 @@
     "start": "node ./src/cli.js",
     "setup": "node ./src/cli.js setup",
     "providers": "node ./src/cli.js providers",
-    "test": "node --test",
     "smoke": "node ./src/cli.js providers"
   },
   "keywords": [

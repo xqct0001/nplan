@@ -2,6 +2,7 @@ node_modules/
 .nplan/
 .superpowers/
 .worktrees/
+/test/
 coverage/
 .nyc_output/
 DOC/
