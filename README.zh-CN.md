@@ -1,233 +1,108 @@
-# NPlan 中文说明
+<p align="center">
+  <img src="assets/nplan-icon.svg" alt="NPlan 图标" width="112">
+</p>
 
-语言：[English](README.md) | 简体中文
+<h1 align="center">NPlan</h1>
 
-NPlan 是一个本地任务理解与任务拆分模块，用来把自然语言请求转换成结构化规划产物。
+<p align="center"><strong>把模糊需求转成可检查、可修改、可导出的工作计划。</strong></p>
 
-它刻意保持“只规划、不执行”的边界。NPlan 不执行任务、不编辑文件、不运行 shell 命令、不创建 UI，也不管理远程 Agent。它负责理解请求、结合本地上下文，并输出可供后续执行器审阅的有界计划。
+<p align="center"><a href="README.md">English</a> · 简体中文</p>
 
-## 核心能力
+NPlan 是一个本地规划 CLI。它读取有边界的项目上下文，澄清需求，并生成经过校验的规划产物：`TaskSpec`、`TaskPlan`、`ContextPack` 和面向用户的 `WorkPlan`。
 
-- 生成并校验 `TaskSpec`：目标、交付物、约束、缺失信息、假设、成功标准、风险、来源证据和规划就绪状态。
-- 生成并校验 `TaskPlan`：有界 DAG，包含任务输入、输出、依赖和验收检查。
-- 在调用模型前，以只读方式整理本地项目上下文，生成 `source_map`、`evidence_map`、`context_report`、`conflict_report` 和 `context_pack`。
-- 支持 OKF 风格本地知识文档：带 YAML frontmatter 的 Markdown、一个文件一个概念、概念之间用链接关联，并记录引用来源。
-- 支持可配置的 OpenAI-compatible 模型 Provider，包括常见本地运行时和主流国内模型平台。
-- 对已就绪任务分别调用一次模型完成 TaskSpec 理解和 TaskPlan 规划，再在本地派生通用 `WorkPlan`，用于展示与导出。
-
-## 安装
-
-```cmd
-cd /d C:\path\to\nplan
-install
-```
-
-之后打开任意 CMD，直接运行：
-
-```cmd
-nplan providers
-nplan setup
-nplan
-```
-
-卸载全局命令：
-
-```cmd
-uninstall
-```
-
-如果从 PowerShell 运行安装脚本，命令是 `.\install.cmd`。安装完成后的入口仍然是 `nplan`。
+> [!IMPORTANT]
+> NPlan 只负责规划。它不会执行任务、运行 Shell 命令、修改源文件、生成 UI，也不会管理远程 Agent。
 
 ## 快速开始
 
-`nplan setup` 按“推荐云端、本地、更多”展示不重复的标准 Provider，引导你选择 Provider、以掩码方式输入 API Key、从 OpenAI-compatible 模型列表接口获取模型选项，并写入 `.nplan/config.toml`。该目录已被 git 忽略。输入无法识别时会重新询问，也支持“是、否、确认、取消”等中文确认方式。
+环境要求：Windows 和 Node.js LTS。
 
-`nplan doctor` 默认只检查本地配置、API Key 是否存在和云端上下文授权状态，并明确提示“未测试联网”。只有显式运行 `nplan doctor --online` 时才会对允许的模型列表或只读健康接口发送一次 GET；任务类地址会在零请求时拒绝，探测不会发送任务或本地上下文。
-
-如果还没有配置模型，在交互式终端里直接运行 `nplan` 会先启动同一个首次配置向导，然后再进入规划会话。`-p` 打印模式仍会清晰报错并提示先配置模型。
-
-启动 NPlan：
+在项目目录中打开 CMD：
 
 ```cmd
-nplan
-nplan "规划发布检查清单"
-nplan -p "设计一个本地文件整理工具，可以扫描文件、分类，并输出 Markdown 报告"
+install.cmd
+nplan setup
+nplan "为这个项目规划一份发布检查清单"
 ```
 
-界面默认使用简体中文；如需英文，添加 `--lang en`：
+如果使用 PowerShell，请运行 `.\install.cmd`。配置向导会把当前项目的设置写入 `.nplan/config.toml`，该目录不会被 Git 跟踪。
+
+## 工作方式
+
+```text
+用户需求
+  → 只读 ContextPack
+  → 已校验 TaskSpec
+  → 有边界的 TaskPlan DAG
+  → 已校验 WorkPlan
+```
+
+如果缺少必要信息，NPlan 会先请求澄清，不会自行补全计划。任务就绪后，需求理解和任务规划分别调用模型，最后在本地完成校验。
+
+## 核心能力
+
+- 默认使用简体中文，可通过 `--lang en` 切换英文。
+- 支持兼容 OpenAI 接口的云端与本地模型服务商。
+- 只读收集本地上下文，并保留稳定的来源与证据编号。
+- 向云端发送本地上下文前，需要按项目和范围确认授权。
+- 本地会话经过脱敏，支持继续、恢复、修改和 Markdown 导出。
+- 本地校验完整性、来源一致性、DAG 合法性和交付物覆盖情况。
+
+## 常用命令
+
+| 命令 | 用途 |
+| --- | --- |
+| `nplan setup` | 配置服务商、API Key 和模型。 |
+| `nplan providers` | 查看内置模型服务商。 |
+| `nplan doctor` | 在不联网的情况下检查本地配置。 |
+| `nplan doctor --online` | 探测允许的只读模型列表或健康接口。 |
+| `nplan "<需求>"` | 使用初始需求开始交互式规划。 |
+| `nplan -p --output-format summary "<需求>"` | 输出一次精简规划结果。 |
+| `nplan -c` | 继续最近的本地会话。 |
+| `nplan resume [编号]` | 恢复已保存的会话。 |
+| `nplan consent status` | 查看云端上下文授权状态。 |
+| `nplan consent revoke` | 撤销已保存的云端上下文授权。 |
+
+进入交互会话后，使用 `/帮助` 或 `/help` 查看命令。常用操作包括 `/修改`、`/来源`、`/步骤`、`/导出`、`/继续` 和 `/恢复`。
+
+## 常见用法
+
+交互式规划：
+
+```cmd
+nplan "把 v0.3 发布工作拆成可审查的任务"
+```
+
+一次输出摘要：
+
+```cmd
+nplan -p --output-format summary "规划一次安全的数据库迁移"
+```
+
+使用英文界面：
 
 ```cmd
 nplan --lang en "Plan the release checklist"
 ```
 
-## CLI
+## 模型、安全与隐私
 
-```text
-nplan [options] [prompt]
+运行 `nplan setup` 选择服务商。推荐的云端选项包括 DeepSeek、DashScope、Kimi、智谱 AI 和豆包；本地选项包括 Ollama 和 LM Studio。也可以配置其他兼容 OpenAI 接口的服务商。
 
-Commands:
-  exec [options] [prompt]
-                    输出一次规划结果后退出
-  setup             引导式 Provider/API Key/模型配置
-  consent [status|revoke]
-                    查看或撤销项目云端上下文授权
-  providers         列出内置模型 Provider
-  resume [id]       恢复已保存的规划会话
-  doctor [--online] 检查本地配置；可选测试模型列表或健康接口
+- 本地服务商不需要云端上下文授权。
+- 云端服务商在两次规划请求前都需要有效的项目与范围授权。
+- 非交互式云端调用需要已保存授权，或使用仅本次有效的 `--allow-cloud-context`。
+- 在 `nplan doctor` 命令中，只有指定 `--online` 才会发起网络探测。
+- 脱敏会话保存在 `.nplan/sessions/`，不包含源文件内容、证据文本、凭据或授权值。
 
-Options:
-  -p, --print       输出一个 JSON 结果后退出
-  --output-format <json|summary|text>
-                    选择 print 模式输出格式
-  --input-format text
-                    从命令行参数或 stdin 接收文本
-  -c, --continue    继续最近一次本地规划会话
-  -r, --resume [id] 恢复已保存的规划会话
-  --model <name>    指定语义理解模型
-  --provider <id>   指定模型 Provider
-  --models-url <u>  指定模型列表 URL，用于自定义 Provider
-  --config-path <p> 加载模型配置 TOML
-  --config key=value
-                    使用 dotted key 覆盖配置
-  --allow-cloud-context
-                    仅本次允许向云端发送上下文
-  --lang <zh-CN|en> 设置界面语言，默认 zh-CN
-  -V, --version     显示版本
-```
+## 文档
 
-旧的 `-c key=value` 配置覆盖仍然兼容；单独使用 `-c` 时会按 Claude Code 的习惯表示 `--continue`。
+- [模块契约](docs/agent-module-spec.md)
+- [模型服务商](docs/model-providers.md)
+- [本地知识库](docs/local-knowledge.md)
+- [规划与 Obsidian 工作流](docs/nplan_process_task_obsidian.md)
+- [项目知识索引](docs/nplan_knowledge/index.md)
 
-交互命令默认使用中文，英文命令仍然兼容：
+## 许可证
 
-```text
-/帮助              /help
-/服务商            /providers
-/状态              /status
-/配置, /设置       /config, /settings
-/模型 [名称]       /model [name]
-/上下文            /context
-/来源              /sources
-/步骤              /todo
-/修改 <补充说明>   /revise <text>
-/导出 [路径]       /export [path]
-/规划 <任务>       /plan <prompt>
-/完整              /json
-/压缩 [备注]       /compact [note]
-/清除, /重置, /新建 /clear, /reset, /new
-/继续              /continue
-/恢复 [会话编号]   /resume [id]
-/退出, /结束       /exit, /quit
-```
-
-`/步骤` 和 `/来源` 是最近一次 WorkPlan 的只读视图。已有 WorkPlan 时直接输入文字、使用 `/修改 <补充说明>`，或在 `--resume` 后附带新任务文字，都会按修订处理；`/新建` 会清空该状态。`/导出` 是唯一会写出新规划文档的交互命令；不带路径时写入 `.nplan/exports/<plan-id>.md`，带路径时写入指定的 Markdown 文件。导出的内容是适合 Obsidian 使用的 WorkPlan，不会执行任务。
-
-CLI 会在不突破规划边界的前提下对齐 Claude Code 的交互形态：无参数进入会话、带引号的 prompt 作为初始任务、`-p` 单次输出、stdin 管道输入、`--continue` / `--resume` 复用本地会话记录。同时保留 Codex 风格的 `exec`、`resume`、`doctor` 命令入口。`.nplan/sessions/` 保存经过净化的 v2 会话，并恢复最近结果与 WorkPlan，使 `/步骤`、`/来源` 和 `/导出` 在恢复后立即可用。会话不会保存证据正文、绝对路径、API Key、Authorization 或来源内容；v1 会话会明确提示不兼容，不会静默恢复成残缺状态。恢复时会重新校验 WorkPlan；被篡改或无效的计划会被隔离并提示重新规划，不能进入查看、修订摘要或导出。
-
-只有 `planned` 状态会生成 WorkPlan 步骤和整体验收标准；待澄清或计划无效时这两部分保持为空。所有渲染、保存与导出边界都会再次校验，失败时只给出安全的重新规划提示。
-
-本地 Provider 不需要云端授权。云端 Provider 必须在任何模型请求前完成授权：交互模式先预览有限的相对来源，可排除项目相对路径并记住当前 Provider 与范围指纹；`--allow-cloud-context` 只允许本次调用。使用 `nplan consent status` 查看项目授权，使用 `nplan consent revoke` 撤销。非交互模式没有有效授权时会在零模型请求的前提下以退出码 `2` 拒绝。
-
-## v0.2 破坏性变更
-
-- 不再加载 session v1。session v2 可恢复最近一次净化结果与 WorkPlan，但不会保存证据正文或绝对路径。
-- 已移除 v0.1 面向拉取请求的专用规划与渲染导出；请从 `src/index.js` 使用 `deriveWorkPlan` 和 WorkPlan 渲染函数。
-- 非交互云端打印模式必须先保存项目授权，或为本次命令传入 `--allow-cloud-context`；本地 Provider 无需授权。
-
-本项目刻意不支持 `!` shell 执行、文件编辑、工具权限模式、MCP 工具配置或远程 Agent 编排。`/export` 是明确列出的边界例外：它只会写出用户要求的 Markdown 规划产物，不会改动源码、创建真实 PR 或执行任务。
-
-## 模型 Provider
-
-列出内置 Provider：
-
-```cmd
-nplan providers
-```
-
-当前支持的 Provider 类型包括：
-
-- 本地运行时：`ollama`、`lmstudio`、`vllm`、`llamacpp`、`localai`
-- 通用 OpenAI-compatible 网关：`openai`、`openrouter`
-- 国内 Provider 与常用别名：`dashscope`、`tongyi`、`qwen`、`deepseek`、`moonshot`、`kimi`、`zhipu`、`bigmodel`、`glm`、`qianfan`、`wenxin`、`volcengine_ark`、`doubao`、`tencent_hunyuan`、`hunyuan`、`siliconflow`、`minimax`、`baichuan`、`yi`、`stepfun`、`modelscope`
-
-部分 OpenAI-compatible API 不接受 JSON mode 参数。NPlan 支持在 Provider 配置中使用 `response_format = "none"` 这类兼容参数。
-
-详见 [docs/model-providers.md](docs/model-providers.md) 和 [config.example.toml](config.example.toml)。
-
-## 本地知识
-
-NPlan 采用 Knowledge Catalog / OKF 中适合本地项目的部分：
-
-- 带 YAML frontmatter 的 Markdown
-- 一个文件一个概念
-- 使用 `index.md` 做渐进式导航
-- 使用 Markdown 链接表达关系
-- 使用引用记录来源
-
-项目知识包位于 [docs/nplan_knowledge](docs/nplan_knowledge/)。面向维护者的说明见 [docs/local-knowledge.md](docs/local-knowledge.md)。
-
-上游参考仓库 `DOC/knowledge-catalog/` 保留给人阅读，但默认上下文扫描会忽略它，避免大量外部样例挤掉本项目自己的上下文。
-
-## 作为库使用
-
-```js
-import {
-  LocalPlanningAgent,
-  OpenAICompatiblePlanningModel,
-  deriveWorkPlan,
-  loadModelConfig
-} from './src/index.js';
-
-const config = await loadModelConfig();
-const modelClient = new OpenAICompatiblePlanningModel({ config });
-const agent = new LocalPlanningAgent({ modelClient });
-
-const result = await agent.analyzeAsync(
-  '设计一个本地文件整理工具，可以扫描文件、分类，并输出 Markdown 报告',
-  { cloud_context_authorized: true } // 仅在你的应用取得授权后使用
-);
-
-console.log(deriveWorkPlan(result));
-```
-
-## 项目结构
-
-```text
-AGENTS.md              当前仓库的 Agent 工作规则
-src/
-  agent.js              LocalPlanningAgent 门面入口
-  cli.js                命令行入口
-  context.js            本地上下文发现
-  context-curator.js    来源排序与证据包生成
-  context-policy.js     上下文发现默认策略
-  conflicts.js          请求/上下文冲突检测
-  i18n.js               CLI 语言与中文命令别名
-  model-client.js       OpenAI-compatible 模型客户端
-  model-config.js       模型 Provider 配置
-  model-errors.js       安全的 Provider 错误分类与下一步提示
-  model-init.js         项目配置写入器
-  model-wizard.js       引导式模型配置向导
-  okf.js                OKF 风格 Markdown 解析器
-  planning.js           TaskPlan DAG 生成
-  provenance.js         SourceRef 与 EvidenceItem 工具
-  schemas.js            Schema 产物与构造函数
-  understanding.js      TaskSpec 归一化
-  validation.js         TaskSpec 与 TaskPlan 校验器
-  work-plan.js          面向用户的通用 WorkPlan
-
-docs/
-  agent-design-prompt-lessons.md
-  agent-module-spec.md
-  local-knowledge.md
-  model-providers.md
-  nplan_knowledge/
-```
-
-## 开发验证
-
-```powershell
-npm.cmd test
-```
-
-## 许可
-
-MIT
+[MIT](LICENSE)
