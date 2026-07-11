@@ -55,8 +55,8 @@ If required information is missing, NPlan asks for clarification instead of inve
 | `nplan setup` | Configure a provider, API key, and model. |
 | `nplan providers` | List built-in providers. |
 | `nplan doctor` | Check local configuration without network access. |
-| `nplan doctor --online` | Probe an allowlisted read-only models or health endpoint. |
-| `nplan "<request>"` | Start or continue an interactive planning session. |
+| `nplan doctor --online` | Probe one allowlisted read-only model-list or health endpoint. |
+| `nplan "<request>"` | Start an interactive planning session with an initial request. |
 | `nplan -p --output-format summary "<request>"` | Print one concise planning result. |
 | `nplan -c` | Continue the latest local session. |
 | `nplan resume [id]` | Resume a saved session. |
@@ -92,7 +92,7 @@ Run `nplan setup` to choose a provider. Recommended cloud choices include DeepSe
 - Local providers do not require cloud-context consent.
 - Cloud providers require project-and-scope consent before either planning request.
 - Non-interactive cloud use needs saved consent or the one-shot `--allow-cloud-context` flag.
-- `nplan doctor` is offline by default; networking occurs only with `doctor --online`.
+- Within `nplan doctor`, networking occurs only with `--online`.
 - Sanitized sessions are stored under `.nplan/sessions/` without source contents, evidence text, credentials, or authorization values.
 
 ## Documentation
