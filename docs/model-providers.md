@@ -111,6 +111,11 @@ embedding route segments. Anything else is rejected before fetch. It never calls
 classified as invalid address, missing credentials, timeout, rate limit, not
 found, provider error, or connection failure, with a safe next action.
 
+The path check applies up to three bounded percent-decoding rounds. Encoded
+slashes or backslashes, malformed escapes, invalid UTF-8, and over-encoded
+remaining escapes are rejected before any request. Valid encoded non-separator
+segments are preserved for the actual GET.
+
 Wizard URL labels show only origin and path. User info, query strings, and
 fragments are never printed, while the original value remains unchanged for
 configuration storage and provider requests.

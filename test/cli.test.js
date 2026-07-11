@@ -1494,6 +1494,42 @@ for (const unsafePath of [
   });
 }
 
+for (const encodedUnsafePath of [
+  '/v1/chat%2Fcompletions/models',
+  '/v1/chat%5Ccompletions/models',
+  '/v1/chat%252Fcompletions/models',
+  '/v1/chat%255Ccompletions/models',
+  '/v1/chat%25252Fcompletions/models',
+  '/v1/chat%25255Ccompletions/models',
+  '/v1/ChAt%252fCoMpLeTiOnS/models',
+  '/v1/%E0%A4%A/models',
+  '/v1/%ZZ/models'
+]) {
+  test(`online doctor rejects encoded health-target bypass ${encodedUnsafePath} before fetch`, async () => {
+    await withHealthServer(async ({ configPath, requests, cwd, env }) => {
+      const result = await runCli(['doctor', '--online', '--config-path', configPath], '', env, cwd);
+
+      assert.equal(result.code, 1);
+      assert.equal(requests.length, 0);
+      assert.match(result.stdout, /健康检查地址不安全/);
+      assert.match(result.stdout, /下一步/);
+      assert.doesNotMatch(result.stdout, /chat|completions|%2f|%5c|%25/i);
+    }, { modelsPath: encodedUnsafePath });
+  });
+}
+
+test('online doctor preserves legal percent-encoded non-separator path segments', async () => {
+  const modelsPath = '/v1/%E9%A1%B9%E7%9B%AE/models';
+  await withHealthServer(async ({ configPath, requests, cwd, env }) => {
+    const result = await runCli(['doctor', '--online', '--config-path', configPath], '', env, cwd);
+
+    assert.equal(result.code, 0);
+    assert.equal(requests.length, 1);
+    assert.match(requests[0].url, /%E9%A1%B9%E7%9B%AE\/models/i);
+    assert.match(result.stdout, /连接正常/);
+  }, { modelsPath });
+});
+
 test('print mode formats provider failures without exposing response secrets', async () => {
   await withFailingModelServer(async ({ configPath, cwd, env }) => {
     const result = await runCli(

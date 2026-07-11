@@ -21,7 +21,8 @@ tools, create a UI, or manage remote agents. Network use is limited to:
 - one explicit `doctor --online` GET probe to an allowlisted read-only
   `models`, `health`, `healthz`, `status`, `ready`, or `readiness` endpoint
   whose path contains no task, chat, completion, response, message, or
-  embedding route segment.
+  embedding route segment. Path validation performs up to three bounded decode
+  rounds and rejects encoded separators, malformed escapes, and invalid UTF-8.
 
 The doctor probe sends no task request or local context.
 

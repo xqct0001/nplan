@@ -1161,28 +1161,54 @@ function providerAddressError(provider) {
 function providerHealthTargetError(provider) {
   try {
     const target = new URL(provider.models_url || modelListUrl(provider.base_url));
-    const segments = target.pathname
-      .split('/')
-      .filter(Boolean)
-      .map((segment) => decodeURIComponent(segment).toLowerCase());
+    const segments = canonicalHealthPathSegments(target.pathname);
     const finalSegment = segments.at(-1) || '';
     const allowed = new Set(['models', 'health', 'healthz', 'status', 'ready', 'readiness']);
-    const forbidden = new Set([
-      'chat',
-      'completions',
-      'responses',
-      'messages',
-      'embeddings',
-      'task',
-      'tasks'
-    ]);
-    if (!allowed.has(finalSegment) || segments.some((segment) => forbidden.has(segment))) {
-      throw new Error('unsafe health target');
-    }
+    if (!allowed.has(finalSegment)) throw new Error('unsafe health target');
     return null;
   } catch {
     return Object.assign(new Error('unsafe health target'), { code: 'unsafe_health_endpoint' });
   }
+}
+
+function canonicalHealthPathSegments(pathname) {
+  let current = String(pathname || '').replaceAll('\\', '/');
+  let segments = [];
+  for (let round = 0; round < 3; round += 1) {
+    const rawSegments = current.replaceAll('\\', '/').split('/').filter(Boolean);
+    segments = rawSegments.map((segment) => {
+      const decoded = decodeURIComponent(segment);
+      if (decoded.includes('/') || decoded.includes('\\')) {
+        throw new Error('encoded path separator');
+      }
+      return decoded.toLowerCase();
+    });
+    if (hasForbiddenHealthPathSegment(segments)) throw new Error('unsafe health target');
+    const next = `/${segments.join('/')}`;
+    if (next === current.toLowerCase()) return segments;
+    current = next;
+  }
+  if (/%[0-9a-f]{2}/i.test(current) || current.includes('%')) {
+    throw new Error('over-encoded path');
+  }
+  return segments;
+}
+
+function hasForbiddenHealthPathSegment(segments) {
+  const forbidden = new Set([
+    'chat',
+    'completion',
+    'completions',
+    'response',
+    'responses',
+    'message',
+    'messages',
+    'embedding',
+    'embeddings',
+    'task',
+    'tasks'
+  ]);
+  return segments.some((segment) => forbidden.has(segment));
 }
 
 function consentMatchesProvider(record, provider) {

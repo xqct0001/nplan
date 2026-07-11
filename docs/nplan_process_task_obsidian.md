@@ -38,7 +38,7 @@ nplan consent status
 
 `nplan setup` 是推荐的用户配置入口。它按推荐云端、本地、更多三组展示标准 Provider，以掩码方式读取 API Key，经用户确认后获取模型列表并写入 `.nplan/config.toml`；中文确认可直接输入“是”或“否”。向导展示 URL 时会移除用户名、密码、查询参数和片段，实际保存与请求值不变。
 
-`nplan doctor` 只做本地配置、密钥和授权检查，不联网。`nplan doctor --online` 只允许向路径末段为 `models`、`health`、`healthz`、`status`、`ready` 或 `readiness`，且整条路径不含 chat、completions、responses、messages、embeddings 或 task(s) 段的只读地址发送一次 GET 探测；其他地址在零请求时拒绝。该探测不携带任务或本地上下文，也不会调用任务理解或计划接口。
+`nplan doctor` 只做本地配置、密钥和授权检查，不联网。`nplan doctor --online` 只允许向路径末段为 `models`、`health`、`healthz`、`status`、`ready` 或 `readiness`，且整条路径不含 chat、completions、responses、messages、embeddings 或 task(s) 段的只读地址发送一次 GET 探测。路径最多执行三轮有界解码；编码后的斜杠或反斜杠、畸形转义和无效 UTF-8 都会在零请求时拒绝。该探测不携带任务或本地上下文，也不会调用任务理解或计划接口。
 
 如果首次在交互式终端运行 `nplan` 时还没有模型配置，CLI 会先启动同一个 setup 向导；非交互场景仍只提示运行 `nplan setup`。
 
