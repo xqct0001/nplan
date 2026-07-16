@@ -1,4 +1,8 @@
-# NPlanCore
+<p align="center">
+  <img src="assets/nplan-icon.svg" alt="NPlanCore icon" width="112">
+</p>
+
+<h1 align="center">NPlanCore</h1>
 
 NPlanCore is a portable planning and governed project-memory plugin for Codex, Claude Code, and other Agent Skills-compatible hosts. It turns ambiguous requests into reviewable `TaskSpec`, `TaskPlan`, and `ContextPack` artifacts while keeping execution outside the plugin boundary.
 
@@ -19,6 +23,7 @@ NPlanCore plans work; it does not execute the resulting plan. Persistent memory 
 .
 ├── .agents/plugins/marketplace.json
 ├── .claude-plugin/marketplace.json
+├── assets/nplan-icon.svg
 ├── plugins/nplan-core/
 │   ├── .codex-plugin/plugin.json
 │   ├── .claude-plugin/plugin.json

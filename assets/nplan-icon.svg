@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">NPlan</title>
+  <desc id="description">A blue-to-teal N-shaped planning path connecting three nodes on a dark rounded square.</desc>
+  <defs>
+    <linearGradient id="nplan-path-gradient" x1="105" y1="390" x2="408" y2="118" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#2DD4BF"/>
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="#0F172A"/>
+  <path d="M132 376V136L380 376V136" fill="none" stroke="url(#nplan-path-gradient)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="132" cy="376" r="24" fill="#E0F2FE" stroke="#38BDF8" stroke-width="12"/>
+  <circle cx="256" cy="256" r="24" fill="#E0F2FE" stroke="#22D3EE" stroke-width="12"/>
+  <circle cx="380" cy="136" r="24" fill="#CCFBF1" stroke="#2DD4BF" stroke-width="12"/>
+</svg>
