@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "nplan-core",
+  "displayName": "NPlanCore",
+  "version": "0.1.0",
+  "description": "Validated planning and governed NPlan project memory for Claude Code.",
+  "author": {
+    "name": "NPlan contributors"
+  },
+  "homepage": "https://github.com/xqct0001/nplan",
+  "repository": "https://github.com/xqct0001/nplan",
+  "license": "MIT",
+  "keywords": ["planning", "memory", "task-spec", "dag", "provenance"],
+  "skills": "./skills/"
+}

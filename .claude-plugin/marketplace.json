@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "nplan-local",
+  "owner": {
+    "name": "NPlan contributors"
+  },
+  "description": "NPlan planning and governed project-memory plugins.",
+  "plugins": [
+    {
+      "name": "nplan-core",
+      "displayName": "NPlanCore",
+      "source": "./plugins/nplan-core",
+      "description": "Create validated plans and safely govern NPlan project memory.",
+      "version": "0.1.0",
+      "author": {
+        "name": "NPlan contributors"
+      },
+      "license": "MIT",
+      "category": "Productivity",
+      "tags": ["planning", "memory", "provenance"]
+    }
+  ]
+}

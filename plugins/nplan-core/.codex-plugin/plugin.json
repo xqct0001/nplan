@@ -1,0 +1,22 @@
+{
+  "name": "nplan-core",
+  "version": "0.1.0",
+  "description": "Validated planning and governed NPlan project memory for Codex.",
+  "author": {
+    "name": "NPlan contributors"
+  },
+  "homepage": "https://github.com/xqct0001/nplan",
+  "repository": "https://github.com/xqct0001/nplan",
+  "license": "MIT",
+  "keywords": ["planning", "memory", "task-spec", "dag", "provenance"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "NPlanCore",
+    "shortDescription": "Validated plans and governed project memory.",
+    "longDescription": "Turn ambiguous requests into reviewable TaskSpec and TaskPlan artifacts, and manage NPlan project memory through previewable proposals with explicit decisions.",
+    "developerName": "NPlan contributors",
+    "category": "Productivity",
+    "capabilities": ["Interactive"],
+    "defaultPrompt": "Turn this request into a validated NPlan plan without executing it."
+  }
+}

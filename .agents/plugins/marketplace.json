@@ -1,0 +1,20 @@
+{
+  "name": "nplan-local",
+  "interface": {
+    "displayName": "NPlanLocal"
+  },
+  "plugins": [
+    {
+      "name": "nplan-core",
+      "source": {
+        "source": "local",
+        "path": "./plugins/nplan-core"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
