@@ -10,14 +10,14 @@
       "name": "nplan-core",
       "displayName": "NPlanCore",
       "source": "./plugins/nplan-core",
-      "description": "Create validated plans and safely govern NPlan project memory.",
-      "version": "0.1.0",
+      "description": "Create safety-gated plans with independent validation states and governed project memory.",
+      "version": "0.2.0",
       "author": {
         "name": "NPlan contributors"
       },
       "license": "MIT",
       "category": "Productivity",
-      "tags": ["planning", "memory", "provenance"]
+      "tags": ["planning", "memory", "provenance", "safety"]
     }
   ]
 }

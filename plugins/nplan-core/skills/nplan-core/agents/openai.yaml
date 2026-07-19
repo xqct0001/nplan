@@ -1,4 +1,4 @@
 interface:
   display_name: "NPlanCore"
-  short_description: "Validated planning and governed project memory"
-  default_prompt: "Use $nplan-core to turn this request into a validated plan or safely govern project memory."
+  short_description: "Safety-gated plans and governed memory"
+  default_prompt: "Use $nplan-core to safety-check this request, create a bounded plan, and report independent validation status without executing it."

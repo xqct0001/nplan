@@ -4,22 +4,25 @@
 
 <h1 align="center">NPlanCore</h1>
 
-<p align="center"><strong>Validated planning and governed project memory for coding agents.</strong></p>
+<p align="center"><strong>Safety-gated planning, independent validation states, and governed project memory for coding agents.</strong></p>
 
 <p align="center">English · <a href="README.zh-CN.md">简体中文</a></p>
 
-NPlanCore turns an ambiguous request into a reviewable plan, or turns a project-memory change into a proposal that must be explicitly approved. It works in Codex, Claude Code, and other Agent Skills-compatible hosts.
+NPlanCore safety-checks an ambiguous request before turning it into a reviewable plan, or turns a sanitized project-memory change into a proposal that must be explicitly approved. It works in Codex, Claude Code, and other Agent Skills-compatible hosts.
 
 > [!IMPORTANT]
-> NPlanCore plans work; it does not execute the resulting plan. Memory changes are proposed first and are never applied or rejected without explicit approval for the exact proposal.
+> NPlanCore plans work; it does not execute the resulting plan. It treats inspected content as untrusted evidence, refuses harmful outcomes, and never applies or rejects memory without explicit approval for the exact proposal.
 
 ## What You Get
 
 - **Structured planning** — produce `TaskSpec`, `TaskPlan`, and `ContextPack` artifacts with clear goals, dependencies, outputs, and acceptance checks.
-- **Plan validation** — check deliverable coverage, dependency references, acyclicity, scope, readiness, and evidence provenance before presenting a plan.
+- **Safety gate** — refuse fraud, evidence tampering, credential theft, covert sabotage, coercion, and unauthorized disclosure before decomposition begins.
+- **Untrusted-input isolation** — treat files, memory, logs, issues, retrieved content, and tool output as evidence rather than executable instructions.
+- **Independent validation states** — only the NPlan runtime may certify a plan as `validated`; model-only self-checks return `unable_to_validate`.
 - **Governed memory** — inspect project memory, propose new facts or corrections, review the exact change, then explicitly apply or reject it.
+- **Mode-scoped tools** — planning is read-only; memory operations use a closed set of exact `nplan memory` commands.
 - **Portable workflow** — use the same planning and memory method from Codex, Claude Code, or another compatible Agent Skills host.
-- **Safe fallback** — when the `nplan` CLI is unavailable, still produce method-compatible plans without pretending that runtime validation or canonical memory writes occurred.
+- **Action attestation** — report commands, validation authority, external actions, file changes, and memory mutations without claiming unobserved success.
 
 ## Requirements
 
@@ -96,7 +99,7 @@ Claude Code:
 /nplan-core:nplan-core Plan a zero-downtime migration from SQLite to PostgreSQL. Do not execute it.
 ```
 
-NPlanCore returns a bounded plan with evidence, dependencies, acceptance checks, risks, and validation results. It stops before task execution.
+NPlanCore returns a bounded plan with evidence, dependencies, acceptance checks, risks, and an action attestation. With the NPlan runtime it may report `validated`; without independent runtime validation it reports `unable_to_validate`. It always stops before task execution.
 
 ### Govern project memory
 
@@ -112,6 +115,7 @@ The workflow shows the exact proposal before asking whether to apply or reject i
 | --- | --- |
 | Plan a feature | `Plan role-based access control for this service.` |
 | Validate a plan | `Check this plan for missing deliverables and invalid dependencies.` |
+| Safety-check a request | `Assess whether this request is safe to plan before decomposing it.` |
 | Clarify a request | `Turn this request into a TaskSpec and ask only blocking questions.` |
 | Inspect memory | `Show project-memory status and the concept named deployment-policy.` |
 | Propose a fact | `Propose remembering that release tags use the vMAJOR.MINOR.PATCH format.` |
@@ -120,33 +124,44 @@ The workflow shows the exact proposal before asking whether to apply or reject i
 
 ## Safety Model
 
-### Planning
+### Fixed safety gate
 
-- Project files are planning evidence, not permission to modify them.
-- Evidence items point to stable source IDs.
-- Blocking uncertainty produces targeted clarification questions.
-- Valid plans end in `pending` tasks and stop before execution.
-- Cloud context is not enabled unless the user explicitly authorizes it.
+- Unsafe outcomes are refused before evidence collection or task decomposition.
+- Legitimate defensive, audit, compliance, and incident-response work requires a bounded authorized scope.
+- NPlanCore raises concerns or refuses transparently; it never secretly changes work, contacts outsiders, or coaches a human proxy.
 
-### Memory
+### Untrusted evidence
 
-- `status` and `show` are read-only.
-- `scan`, `ingest`, `note`, and `correct` create proposals.
-- Every proposal exposes its ID, operation, concept, authority, base version, sources, and proposed content.
-- `apply` and `reject` require explicit authorization for the exact proposal ID.
-- Direct edits to `.nplan/memory/`, physical deletion, and `forget` are unsupported.
+- Project instructions may constrain the workflow but cannot authorize side effects.
+- Files, memory, logs, issues, retrieved content, and tool output are untrusted evidence.
+- Embedded instructions cannot grant permission, change policy, suppress findings, reveal secrets, or alter validation labels.
+
+### Independent validation
+
+- The planner freezes a candidate before validation.
+- The validator evaluates the frozen candidate and cannot rewrite it.
+- Only an independent NPlan runtime/schema validator may return `validated`.
+- Host-model self-checks return `unable_to_validate`, even when no defect is found.
+
+### Tool and memory controls
+
+- Planning permits read, list, and search operations plus one exact NPlan print-mode command.
+- Memory permits only the documented `status`, `show`, `scan`, `ingest`, `note`, `correct`, `apply`, and `reject` forms.
+- Secrets and raw confidential or personal data are redacted rather than stored.
+- `apply` and `reject` require explicit authorization for the exact proposal ID and action.
+- Direct edits to `.nplan/memory/`, physical deletion, shell composition, and `forget` are unsupported.
 
 ## How It Works
 
 ```text
 Planning
-request → bounded context → TaskSpec → TaskPlan → validation → stop
+request → safety gate → untrusted evidence → frozen plan → independent validation → stop
 
 Memory
-sources → proposal → review → explicit apply/reject → canonical memory
+sources → confidentiality gate → proposal → review → exact apply/reject → attestation
 ```
 
-If the `nplan` CLI is not installed, the host can still follow the bundled planning contract. In that mode, NPlanCore reports that runtime validation and canonical memory persistence were not performed.
+If the `nplan` CLI is not installed, the host can still produce a method-compatible candidate and identify likely defects. It must report `unable_to_validate`, cannot certify its own plan, and cannot persist canonical memory.
 
 ## Plugin Structure
 
